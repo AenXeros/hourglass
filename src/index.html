@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hourglass</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button id="collapseBtn" class="icon-btn" title="Collapse to mini timer (top-right corner)">
+      <span class="collapse-glyph">⧉</span>
+    </button>
+    <div class="brand">
+      <span class="brand-icon">⏳</span>
+      <h1>Hourglass</h1>
+    </div>
+    <div class="reset-note" id="resetNote">Resets daily at 5:00 AM</div>
+  </header>
+
+  <main class="content">
+    <!-- Hourglass list -->
+    <section class="list-header">
+      <h2>Hourglasses</h2>
+      <button id="resetAllBtn" class="ghost-btn">Reset all timers</button>
+    </section>
+    <section id="hourglassList" class="hourglass-list"></section>
+    <p id="emptyState" class="empty">No hourglasses yet. Create one in the “New Hourglass” panel below to start tracking.</p>
+
+    <div class="settings-divider">
+      <span>Settings</span>
+    </div>
+
+    <!-- Schedule -->
+    <section class="card schedule">
+      <h2>Your Day</h2>
+      <div class="schedule-grid">
+        <label>
+          <span>Wake up</span>
+          <input type="time" id="wakeTime" />
+        </label>
+        <label>
+          <span>Sleep</span>
+          <input type="time" id="sleepTime" />
+        </label>
+        <div class="stat">
+          <span class="stat-label">Hours awake</span>
+          <span class="stat-value" id="hoursAwake">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Allocated</span>
+          <span class="stat-value" id="hoursAllocated">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Unallocated</span>
+          <span class="stat-value" id="hoursFree">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add hourglass -->
+    <section class="card add-card">
+      <h2>New Hourglass</h2>
+      <form id="addForm" class="add-form">
+        <div class="field grow">
+          <label for="hgName">Task name</label>
+          <input type="text" id="hgName" placeholder="e.g. Physics" required />
+        </div>
+        <div class="field">
+          <label for="hgHours">Hours</label>
+          <input type="number" id="hgHours" min="0" max="24" step="1" value="1" />
+        </div>
+        <div class="field">
+          <label for="hgMinutes">Minutes</label>
+          <input type="number" id="hgMinutes" min="0" max="59" step="1" value="0" />
+        </div>
+        <div class="field">
+          <label for="hgKeybind">Keybind</label>
+          <input type="text" id="hgKeybind" class="keybind-input" placeholder="Click, then press keys" readonly />
+        </div>
+        <button type="submit" class="primary-btn">Add</button>
+      </form>
+      <p class="hint">Tip: use a modifier like <code>Ctrl+Shift+1</code> so the shortcut works globally without interrupting typing. Press <code>Shift+Esc</code> anytime to shrink into the mini pill.</p>
+    </section>
+  </main>
+
+  <!-- Edit modal -->
+  <div id="editModal" class="modal hidden">
+    <div class="modal-box">
+      <h2>Edit Hourglass</h2>
+      <div class="field">
+        <label for="editName">Task name</label>
+        <input type="text" id="editName" />
+      </div>
+      <div class="modal-row">
+        <div class="field">
+          <label for="editHours">Hours</label>
+          <input type="number" id="editHours" min="0" max="24" step="1" />
+        </div>
+        <div class="field">
+          <label for="editMinutes">Minutes</label>
+          <input type="number" id="editMinutes" min="0" max="59" step="1" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="editKeybind">Keybind</label>
+        <input type="text" id="editKeybind" class="keybind-input" placeholder="Click, then press keys" readonly />
+        <button type="button" id="clearKeybind" class="link-btn">Clear keybind</button>
+      </div>
+      <div class="modal-actions">
+        <button id="editCancel" class="ghost-btn">Cancel</button>
+        <button id="editSave" class="primary-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

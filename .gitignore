@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Generated icon rasters (regenerated from build/icon.svg via `npm run icons`)
+build/icon.png
+build/icon.ico
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log

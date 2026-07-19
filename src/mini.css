@@ -1,0 +1,101 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* The pill --------------------------------------------------------------- */
+.mini {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px 0 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(160deg, #2a2240, #191524);
+  border: 1px solid #3d3357;
+  /* No drop shadow: on a transparent window it bleeds into the square window
+     corners and shows as dark fringes outside the rounded pill. The ring
+     shadows below follow the border-radius, so they stay clean. */
+  /* the whole pill is draggable to reposition the window */
+  -webkit-app-region: drag;
+}
+.mini.active { border-color: #f5a623; box-shadow: 0 0 0 1px #f5a623; }
+.mini.over { border-color: #ff6b6b; box-shadow: 0 0 0 1px #ff6b6b; }
+
+/* Progress fills the pill from the left, behind the content, and drains
+   toward empty as time runs out (representing time remaining). */
+.mini-bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(245,166,35,0.15), rgba(255,210,122,0.08));
+  transition: width 0.5s;
+  z-index: 0;
+}
+.mini.over .mini-bar-fill { background: rgba(255,107,107,0.15); }
+
+/* Status dot */
+.mini-dot {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #5a5170;
+  flex: 0 0 auto;
+}
+.mini.active .mini-dot { background: #f5a623; box-shadow: 0 0 8px #f5a623; }
+.mini.over .mini-dot { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
+
+/* Task name */
+.mini-name {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: #cfc6e6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini.active .mini-name { color: #ffe6b8; }
+
+/* Time */
+.mini-time {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  font-size: 19px;
+  font-weight: 700;
+  color: #ffd27a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+.mini.over .mini-time { color: #ff6b6b; }
+
+/* Expand button */
+.mini-expand {
+  position: relative;
+  z-index: 1;
+  -webkit-app-region: no-drag;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: #a094bd;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.mini-expand:hover { color: #ece7f5; background: rgba(255, 255, 255, 0.14); }

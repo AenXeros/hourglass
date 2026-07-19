@@ -1,0 +1,41 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#332a52"/>
+      <stop offset="1" stop-color="#161221"/>
+    </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe0a0"/>
+      <stop offset="1" stop-color="#f5a623"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4d9a6"/>
+      <stop offset="1" stop-color="#d9ab63"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f5a623" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#f5a623" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- App tile -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <circle cx="256" cy="262" r="150" fill="url(#glow)"/>
+
+  <!-- Glass outline: two triangles meeting at the neck -->
+  <path d="M168 158 L344 158 L256 256 Z M168 366 L344 366 L256 256 Z"
+        fill="none" stroke="#efe8ff" stroke-opacity="0.28" stroke-width="7" stroke-linejoin="round"/>
+
+  <!-- Remaining sand in the top bulb -->
+  <path d="M182 168 L330 168 L256 250 Z" fill="url(#sand)"/>
+
+  <!-- Falling stream -->
+  <rect x="251" y="250" width="10" height="112" rx="5" fill="url(#sand)"/>
+
+  <!-- Sand pile forming in the bottom bulb -->
+  <path d="M196 360 Q256 300 316 360 Z" fill="url(#sand)"/>
+
+  <!-- Top and bottom caps -->
+  <rect x="150" y="132" width="212" height="26" rx="13" fill="url(#cap)"/>
+  <rect x="150" y="354" width="212" height="26" rx="13" fill="url(#cap)"/>
+</svg>
