@@ -17,7 +17,7 @@ function fmtDuration(totalSec) {
     h > 0
       ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
       : `${m}:${String(sec).padStart(2, '0')}`;
-  return (neg ? '+' : '') + core;
+  return (neg ? '-' : '') + core;
 }
 
 function fmtHours(sec) {
@@ -147,37 +147,29 @@ function render() {
   freeEl.classList.toggle('negative', free < 0);
 
   // Behind-schedule banner ---------------------------------------------------
-  // "Behind" = the hourglass work still left minus the time left before bed.
-  // Time spent with NO hourglass running eats into "time until sleep" without
-  // reducing the work left, so you fall behind by exactly that amount.
+  // "Behind" = lost time you have to make up, counted as a debt:
+  //   idle time (no hourglass running) + overtime (time spent past a task's
+  //   allocation). Computed as: work still left − time left before bed + any
+  //   unallocated slack, so both idle AND overtime always add to it regardless
+  //   of buffer. Never goes below zero.
   const statusEl = document.getElementById('scheduleStatus');
   if (!state.hourglasses.length) {
     statusEl.style.display = 'none';
   } else {
-    const remaining = state.hourglasses.reduce(
+    const workLeft = state.hourglasses.reduce(
       (sum, h) => sum + Math.max(0, h.allocatedSeconds - h.elapsedSeconds), 0);
-    const behind = remaining - secondsUntilSleep();
+    const slack = awake - allocated; // unallocated free time in the day
+    const behind = Math.max(0, workLeft - secondsUntilSleep() + slack);
     const behindMin = Math.round(behind / 60);
-    const iconEl = document.getElementById('ssIcon');
     const valueEl = document.getElementById('ssValue');
-    const subEl = document.getElementById('ssSub');
 
     statusEl.style.display = 'flex';
     if (behindMin >= 1) {
       statusEl.className = 'schedule-status behind';
-      iconEl.textContent = '▲';
       valueEl.textContent = `${fmtMins(behind)} behind schedule`;
-      subEl.textContent = 'Time slipped by with no hourglass running — make it up before bed.';
-    } else if (behindMin <= -1) {
-      statusEl.className = 'schedule-status ontrack';
-      iconEl.textContent = '●';
-      valueEl.textContent = 'On track';
-      subEl.textContent = `${fmtMins(behind)} of buffer before bedtime.`;
     } else {
       statusEl.className = 'schedule-status ontrack';
-      iconEl.textContent = '●';
-      valueEl.textContent = 'Right on schedule';
-      subEl.textContent = 'Your remaining tasks fit exactly in the time left.';
+      valueEl.textContent = 'On track';
     }
   }
 

@@ -141,14 +141,9 @@ input::-webkit-calendar-picker-indicator { filter: invert(0.7); }
   border-color: rgba(78, 203, 141, 0.6);
   background: linear-gradient(135deg, rgba(78, 203, 141, 0.10), rgba(78, 203, 141, 0.02));
 }
-.ss-main { display: flex; align-items: center; gap: 10px; }
-.ss-icon { font-size: 11px; line-height: 1; }
 .ss-value { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
-.ss-sub { font-size: 12px; color: var(--muted); }
-.schedule-status.behind .ss-value,
-.schedule-status.behind .ss-icon { color: var(--red); }
-.schedule-status.ontrack .ss-value,
-.schedule-status.ontrack .ss-icon { color: var(--green); }
+.schedule-status.behind .ss-value { color: var(--red); }
+.schedule-status.ontrack .ss-value { color: var(--green); }
 
 /* Settings divider -------------------------------------------------------- */
 .settings-divider {

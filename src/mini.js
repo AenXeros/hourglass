@@ -11,7 +11,7 @@ function fmtDuration(totalSec) {
     h > 0
       ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
       : `${m}:${String(sec).padStart(2, '0')}`;
-  return (neg ? '+' : '') + core;
+  return (neg ? '-' : '') + core;
 }
 
 function render(state) {
