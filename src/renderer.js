@@ -155,7 +155,9 @@ function render() {
   if (document.activeElement !== sleepEl) sleepEl.value = state.sleepTime;
 
   const awake = hoursAwake();
-  const allocated = state.hourglasses.reduce((sum, h) => sum + effAlloc(h), 0);
+  // "Your Day" totals reflect the base plan, not reallocated budgets — pulling
+  // time from a task to catch up doesn't turn it into free/unallocated time.
+  const allocated = state.hourglasses.reduce((sum, h) => sum + h.allocatedSeconds, 0);
   document.getElementById('hoursAwake').textContent = fmtHours(awake) + ' h';
   document.getElementById('hoursAllocated').textContent = fmtHours(allocated) + ' h';
   const free = awake - allocated;
