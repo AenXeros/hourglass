@@ -27,6 +27,11 @@ function loadState() {
     const parsed = JSON.parse(raw);
     state = { ...DEFAULT_STATE, ...parsed };
     if (!Array.isArray(state.hourglasses)) state.hourglasses = [];
+    // Migrate older data: every hourglass needs a borrowedSeconds field
+    // (time reallocated away from it to catch up on schedule).
+    for (const hg of state.hourglasses) {
+      if (typeof hg.borrowedSeconds !== 'number') hg.borrowedSeconds = 0;
+    }
   } catch {
     state = { ...DEFAULT_STATE };
   }
@@ -69,7 +74,12 @@ function currentResetKey(now = new Date()) {
 function maybeReset() {
   const key = currentResetKey();
   if (state.lastResetKey !== key) {
-    for (const hg of state.hourglasses) hg.elapsedSeconds = 0;
+    // New day: wipe elapsed time and any reallocated (borrowed) time so the
+    // plan starts fresh.
+    for (const hg of state.hourglasses) {
+      hg.elapsedSeconds = 0;
+      hg.borrowedSeconds = 0;
+    }
     state.lastResetKey = key;
     scheduleSave();
     return true;
@@ -128,6 +138,13 @@ function getPublicState() {
 // ---------------------------------------------------------------------------
 function makeId() {
   return 'hg_' + Math.random().toString(36).slice(2, 10);
+}
+
+// The most time an hourglass can give up is whatever it still has left
+// (allocation minus time already spent) — you can't pull it into overtime.
+function clampBorrow(hg, seconds) {
+  const ceiling = Math.max(0, hg.allocatedSeconds - hg.elapsedSeconds);
+  return Math.min(Math.max(0, Math.round(seconds || 0)), ceiling);
 }
 
 // A key press can reach us twice — once from the global shortcut and once from
@@ -271,6 +288,7 @@ ipcMain.handle('add-hourglass', (_e, { name, allocatedSeconds, keybind }) => {
     name: String(name || 'Untitled').trim() || 'Untitled',
     allocatedSeconds: Math.max(0, Math.round(allocatedSeconds || 0)),
     elapsedSeconds: 0,
+    borrowedSeconds: 0,
     keybind: keybind || '',
   };
   state.hourglasses.push(hg);
@@ -286,7 +304,23 @@ ipcMain.handle('update-hourglass', (_e, { id, name, allocatedSeconds, keybind })
     if (typeof name === 'string') hg.name = name.trim() || hg.name;
     if (typeof allocatedSeconds === 'number') hg.allocatedSeconds = Math.max(0, Math.round(allocatedSeconds));
     if (typeof keybind === 'string') hg.keybind = keybind;
+    // Keep borrowed time within what this hourglass can still give.
+    hg.borrowedSeconds = clampBorrow(hg, hg.borrowedSeconds || 0);
     registerShortcuts();
+    saveState();
+    broadcastState();
+  }
+  return getPublicState();
+});
+
+// Reallocate ("pull") time away from an hourglass to catch up on schedule.
+// borrowedSeconds is the total pulled from this hourglass; it can be raised
+// (pull more) or lowered (return time) freely, and redirected to another
+// hourglass by pulling from that one instead.
+ipcMain.handle('set-borrow', (_e, { id, seconds }) => {
+  const hg = state.hourglasses.find((h) => h.id === id);
+  if (hg) {
+    hg.borrowedSeconds = clampBorrow(hg, seconds);
     saveState();
     broadcastState();
   }

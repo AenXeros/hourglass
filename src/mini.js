@@ -26,11 +26,12 @@ function render(state) {
     return;
   }
 
-  const remaining = active.allocatedSeconds - active.elapsedSeconds;
+  const effAlloc = Math.max(0, active.allocatedSeconds - (active.borrowedSeconds || 0));
+  const remaining = effAlloc - active.elapsedSeconds;
   const over = remaining < 0;
   // Fill represents time LEFT — it drains from full toward empty like sand.
-  const pct = active.allocatedSeconds > 0
-    ? Math.max(0, Math.min(100, (remaining / active.allocatedSeconds) * 100))
+  const pct = effAlloc > 0
+    ? Math.max(0, Math.min(100, (remaining / effAlloc) * 100))
     : 0;
 
   mini.classList.add('active');

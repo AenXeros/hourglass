@@ -126,8 +126,9 @@ input::-webkit-calendar-picker-indicator { filter: invert(0.7); }
 /* Behind-schedule banner -------------------------------------------------- */
 .schedule-status {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 18px;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -144,6 +145,73 @@ input::-webkit-calendar-picker-indicator { filter: invert(0.7); }
 .ss-value { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
 .schedule-status.behind .ss-value { color: var(--red); }
 .schedule-status.ontrack .ss-value { color: var(--green); }
+.ss-btn {
+  flex: 0 0 auto;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.schedule-status.behind .ss-btn { border-color: var(--red); color: var(--accent-2); }
+.ss-btn:hover { filter: brightness(1.12); }
+
+.hg-borrowed { color: var(--accent); }
+
+/* Reallocate modal -------------------------------------------------------- */
+.realloc-box { width: 460px; }
+.realloc-status {
+  font-size: 22px;
+  font-weight: 700;
+}
+.realloc-status.behind { color: var(--red); }
+.realloc-status.ontrack { color: var(--green); }
+.realloc-hint { font-size: 12px; color: var(--muted); margin-top: -4px; }
+.realloc-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.realloc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.rr-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rr-name { font-size: 14px; font-weight: 600; }
+.rr-spare { font-size: 12px; color: var(--muted); }
+.rr-pulled { color: var(--accent); }
+.rr-controls { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.rr-amount {
+  min-width: 48px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.rr-btn {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rr-btn:hover:not(:disabled) { border-color: var(--accent); }
+.rr-btn:disabled { opacity: 0.35; cursor: default; }
+.rr-btn.ghost { color: var(--muted); }
+.rr-btn.cover {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #2b1a00;
+  border-color: transparent;
+}
 
 /* Settings divider -------------------------------------------------------- */
 .settings-divider {

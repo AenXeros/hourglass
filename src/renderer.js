@@ -2,6 +2,7 @@ const api = window.hourglass;
 
 let state = { wakeTime: '05:00', sleepTime: '23:00', hourglasses: [], activeId: null };
 let editingId = null;
+let reallocOpen = false;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,6 +55,22 @@ function fmtMins(sec) {
   const h = Math.floor(total / 60);
   const m = total % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}
+
+// Effective allocation = the base goal minus any time reallocated (pulled)
+// away from this hourglass to catch up on schedule.
+function effAlloc(h) {
+  return Math.max(0, h.allocatedSeconds - (h.borrowedSeconds || 0));
+}
+
+// How far behind schedule, in seconds (may be negative when on schedule).
+// = work still left across all hourglasses − time left before bed. Pulling
+// time from a task lowers its effective allocation, which lowers work-left,
+// which directly reduces this number.
+function behindSeconds() {
+  const workLeft = state.hourglasses.reduce(
+    (sum, h) => sum + Math.max(0, effAlloc(h) - h.elapsedSeconds), 0);
+  return workLeft - secondsUntilSleep();
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +155,7 @@ function render() {
   if (document.activeElement !== sleepEl) sleepEl.value = state.sleepTime;
 
   const awake = hoursAwake();
-  const allocated = state.hourglasses.reduce((sum, h) => sum + h.allocatedSeconds, 0);
+  const allocated = state.hourglasses.reduce((sum, h) => sum + effAlloc(h), 0);
   document.getElementById('hoursAwake').textContent = fmtHours(awake) + ' h';
   document.getElementById('hoursAllocated').textContent = fmtHours(allocated) + ' h';
   const free = awake - allocated;
@@ -147,31 +164,30 @@ function render() {
   freeEl.classList.toggle('negative', free < 0);
 
   // Behind-schedule banner ---------------------------------------------------
-  // "Behind" = lost time you have to make up, counted as a debt:
-  //   idle time (no hourglass running) + overtime (time spent past a task's
-  //   allocation). Computed as: work still left − time left before bed + any
-  //   unallocated slack, so both idle AND overtime always add to it regardless
-  //   of buffer. Never goes below zero.
   const statusEl = document.getElementById('scheduleStatus');
+  const valueEl = document.getElementById('ssValue');
+  const catchUpBtn = document.getElementById('catchUpBtn');
+  const totalBorrowed = state.hourglasses.reduce((s, h) => s + (h.borrowedSeconds || 0), 0);
   if (!state.hourglasses.length) {
     statusEl.style.display = 'none';
   } else {
-    const workLeft = state.hourglasses.reduce(
-      (sum, h) => sum + Math.max(0, h.allocatedSeconds - h.elapsedSeconds), 0);
-    const slack = awake - allocated; // unallocated free time in the day
-    const behind = Math.max(0, workLeft - secondsUntilSleep() + slack);
+    const behind = behindSeconds();
     const behindMin = Math.round(behind / 60);
-    const valueEl = document.getElementById('ssValue');
-
     statusEl.style.display = 'flex';
     if (behindMin >= 1) {
       statusEl.className = 'schedule-status behind';
       valueEl.textContent = `${fmtMins(behind)} behind schedule`;
+      catchUpBtn.style.display = '';
+      catchUpBtn.textContent = 'Catch up';
     } else {
       statusEl.className = 'schedule-status ontrack';
-      valueEl.textContent = 'On track';
+      valueEl.textContent = '✓ On schedule';
+      // Still offer a way back in to return/redirect any reallocated time.
+      catchUpBtn.style.display = totalBorrowed > 0 ? '' : 'none';
+      catchUpBtn.textContent = 'Adjust';
     }
   }
+  if (reallocOpen) renderReallocModal();
 
   // List
   const list = document.getElementById('hourglassList');
@@ -180,11 +196,13 @@ function render() {
   empty.style.display = state.hourglasses.length ? 'none' : 'block';
 
   for (const hg of state.hourglasses) {
-    const remaining = hg.allocatedSeconds - hg.elapsedSeconds;
+    const alloc = effAlloc(hg);
+    const remaining = alloc - hg.elapsedSeconds;
     const isActive = state.activeId === hg.id;
     const over = remaining < 0;
-    const pct = hg.allocatedSeconds > 0
-      ? Math.min(100, (hg.elapsedSeconds / hg.allocatedSeconds) * 100)
+    const borrowed = hg.borrowedSeconds || 0;
+    const pct = alloc > 0
+      ? Math.min(100, (hg.elapsedSeconds / alloc) * 100)
       : 0;
 
     const card = document.createElement('div');
@@ -198,7 +216,7 @@ function render() {
         </div>
         <div class="hg-time ${over ? 'over' : ''}">${fmtDuration(remaining)} ${over ? '<span class="over-tag">over</span>' : 'left'}</div>
         <div class="hg-bar"><div class="hg-bar-fill" style="width:${pct}%"></div></div>
-        <div class="hg-sub">${fmtDuration(hg.elapsedSeconds)} spent · ${fmtHours(hg.allocatedSeconds)} h goal</div>
+        <div class="hg-sub">${fmtDuration(hg.elapsedSeconds)} spent · ${fmtHours(alloc)} h goal${borrowed > 0 ? ` · <span class="hg-borrowed">−${fmtMins(borrowed)} reallocated</span>` : ''}</div>
       </div>
       <div class="hg-actions">
         <button class="toggle-btn ${isActive ? 'on' : ''}" data-act="toggle" data-id="${hg.id}">
@@ -336,6 +354,87 @@ modal.addEventListener('click', (e) => {
     modal.classList.add('hidden');
     editingId = null;
   }
+});
+
+// ---------------------------------------------------------------------------
+// Reallocate ("catch up") modal
+// ---------------------------------------------------------------------------
+const reallocModal = document.getElementById('reallocModal');
+const STEP = 300; // 5 minutes
+
+function openRealloc() {
+  reallocOpen = true;
+  reallocModal.classList.remove('hidden');
+  renderReallocModal();
+}
+function closeRealloc() {
+  reallocOpen = false;
+  reallocModal.classList.add('hidden');
+}
+
+function renderReallocModal() {
+  const statusEl = document.getElementById('reallocStatus');
+  const listEl = document.getElementById('reallocList');
+  const deficit = Math.max(0, behindSeconds());
+
+  if (Math.round(deficit / 60) >= 1) {
+    statusEl.className = 'realloc-status behind';
+    statusEl.textContent = `${fmtMins(deficit)} to make up`;
+  } else {
+    statusEl.className = 'realloc-status ontrack';
+    statusEl.textContent = '✓ On schedule';
+  }
+
+  listEl.innerHTML = '';
+  for (const hg of state.hourglasses) {
+    const ceiling = Math.max(0, hg.allocatedSeconds - hg.elapsedSeconds); // max pullable
+    const borrowed = hg.borrowedSeconds || 0;
+    const spareLeft = Math.max(0, ceiling - borrowed); // task time still remaining
+    const canPullMore = spareLeft > 0;
+
+    const row = document.createElement('div');
+    row.className = 'realloc-row';
+    row.innerHTML = `
+      <div class="rr-info">
+        <span class="rr-name">${escapeHtml(hg.name)}</span>
+        <span class="rr-spare">${fmtMins(spareLeft)} left${borrowed > 0 ? ` · <span class="rr-pulled">−${fmtMins(borrowed)} pulled</span>` : ''}</span>
+      </div>
+      <div class="rr-controls">
+        ${borrowed > 0 ? `<button class="rr-btn ghost" data-ract="return" data-id="${hg.id}">Return</button>` : ''}
+        <button class="rr-btn" data-ract="minus" data-id="${hg.id}" ${borrowed <= 0 ? 'disabled' : ''}>−5m</button>
+        <span class="rr-amount">${fmtMins(borrowed)}</span>
+        <button class="rr-btn" data-ract="plus" data-id="${hg.id}" ${!canPullMore ? 'disabled' : ''}>+5m</button>
+        ${deficit > 0 && canPullMore ? `<button class="rr-btn cover" data-ract="fill" data-id="${hg.id}">Cover</button>` : ''}
+      </div>
+    `;
+    listEl.appendChild(row);
+  }
+}
+
+document.getElementById('catchUpBtn').addEventListener('click', openRealloc);
+document.getElementById('reallocDone').addEventListener('click', closeRealloc);
+reallocModal.addEventListener('click', (e) => {
+  if (e.target === reallocModal) closeRealloc();
+});
+
+document.getElementById('reallocList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-ract]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const hg = state.hourglasses.find((h) => h.id === id);
+  if (!hg) return;
+  const ceiling = Math.max(0, hg.allocatedSeconds - hg.elapsedSeconds);
+  const borrowed = hg.borrowedSeconds || 0;
+  let target = borrowed;
+  switch (btn.dataset.ract) {
+    case 'minus': target = borrowed - STEP; break;
+    case 'plus': target = borrowed + STEP; break;
+    case 'return': target = 0; break;
+    case 'fill': target = Math.min(ceiling, borrowed + Math.max(0, behindSeconds())); break;
+  }
+  target = Math.max(0, Math.min(ceiling, target));
+  state = await api.setBorrow(id, target);
+  render();
 });
 
 // ---------------------------------------------------------------------------

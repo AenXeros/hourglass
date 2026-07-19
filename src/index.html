@@ -22,6 +22,7 @@
     <!-- Behind-schedule banner: how much time has slipped by with no hourglass running -->
     <section id="scheduleStatus" class="schedule-status" style="display:none">
       <span class="ss-value" id="ssValue">—</span>
+      <button id="catchUpBtn" class="ss-btn" style="display:none">Catch up</button>
     </section>
 
     <!-- Hourglass list -->
@@ -115,6 +116,19 @@
       <div class="modal-actions">
         <button id="editCancel" class="ghost-btn">Cancel</button>
         <button id="editSave" class="primary-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reallocate (catch up) modal -->
+  <div id="reallocModal" class="modal hidden">
+    <div class="modal-box realloc-box">
+      <h2>Catch up on schedule</h2>
+      <div class="realloc-status" id="reallocStatus">—</div>
+      <p class="realloc-hint">Pull time from a task's budget to make up what you've lost. Return it, or pull from a different task, anytime.</p>
+      <div id="reallocList" class="realloc-list"></div>
+      <div class="modal-actions">
+        <button id="reallocDone" class="primary-btn">Done</button>
       </div>
     </div>
   </div>
