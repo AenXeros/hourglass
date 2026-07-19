@@ -395,16 +395,20 @@ function renderReallocModal() {
     const row = document.createElement('div');
     row.className = 'realloc-row';
     row.innerHTML = `
-      <div class="rr-info">
+      <div class="rr-top">
         <span class="rr-name">${escapeHtml(hg.name)}</span>
-        <span class="rr-spare">${fmtMins(spareLeft)} left${borrowed > 0 ? ` · <span class="rr-pulled">−${fmtMins(borrowed)} pulled</span>` : ''}</span>
+        <span class="rr-spare">${fmtMins(spareLeft)} left${borrowed > 0 ? ` <span class="rr-pulled">· −${fmtMins(borrowed)} pulled</span>` : ''}</span>
       </div>
       <div class="rr-controls">
-        ${borrowed > 0 ? `<button class="rr-btn ghost" data-ract="return" data-id="${hg.id}">Return</button>` : ''}
-        <button class="rr-btn" data-ract="minus" data-id="${hg.id}" ${borrowed <= 0 ? 'disabled' : ''}>−5m</button>
-        <span class="rr-amount">${fmtMins(borrowed)}</span>
-        <button class="rr-btn" data-ract="plus" data-id="${hg.id}" ${!canPullMore ? 'disabled' : ''}>+5m</button>
-        ${deficit > 0 && canPullMore ? `<button class="rr-btn cover" data-ract="fill" data-id="${hg.id}">Cover</button>` : ''}
+        <div class="rr-stepper">
+          <button class="rr-btn" data-ract="minus" data-id="${hg.id}" ${borrowed <= 0 ? 'disabled' : ''}>−5m</button>
+          <span class="rr-amount">${fmtMins(borrowed)}</span>
+          <button class="rr-btn" data-ract="plus" data-id="${hg.id}" ${!canPullMore ? 'disabled' : ''}>+5m</button>
+        </div>
+        <div class="rr-actions">
+          ${borrowed > 0 ? `<button class="rr-btn ghost" data-ract="return" data-id="${hg.id}">Return</button>` : ''}
+          ${deficit > 0 && canPullMore ? `<button class="rr-btn cover" data-ract="fill" data-id="${hg.id}">Cover</button>` : ''}
+        </div>
       </div>
     `;
     listEl.appendChild(row);
