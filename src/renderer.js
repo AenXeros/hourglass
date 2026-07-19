@@ -38,6 +38,24 @@ function hoursAwake() {
   return diff * 60; // seconds
 }
 
+// Seconds from right now until the next occurrence of the sleep time.
+function secondsUntilSleep() {
+  const now = new Date();
+  const [sh, sm] = (state.sleepTime || '0:0').split(':').map(Number);
+  const sleep = new Date(now);
+  sleep.setHours(sh, sm, 0, 0);
+  if (sleep <= now) sleep.setDate(sleep.getDate() + 1);
+  return Math.floor((sleep - now) / 1000);
+}
+
+// Whole-minute duration label, e.g. "1h 05m" or "32m".
+function fmtMins(sec) {
+  const total = Math.round(Math.abs(sec) / 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}
+
 // ---------------------------------------------------------------------------
 // Keybind capture
 // ---------------------------------------------------------------------------
@@ -127,6 +145,41 @@ function render() {
   const freeEl = document.getElementById('hoursFree');
   freeEl.textContent = fmtHours(free) + ' h';
   freeEl.classList.toggle('negative', free < 0);
+
+  // Behind-schedule banner ---------------------------------------------------
+  // "Behind" = the hourglass work still left minus the time left before bed.
+  // Time spent with NO hourglass running eats into "time until sleep" without
+  // reducing the work left, so you fall behind by exactly that amount.
+  const statusEl = document.getElementById('scheduleStatus');
+  if (!state.hourglasses.length) {
+    statusEl.style.display = 'none';
+  } else {
+    const remaining = state.hourglasses.reduce(
+      (sum, h) => sum + Math.max(0, h.allocatedSeconds - h.elapsedSeconds), 0);
+    const behind = remaining - secondsUntilSleep();
+    const behindMin = Math.round(behind / 60);
+    const iconEl = document.getElementById('ssIcon');
+    const valueEl = document.getElementById('ssValue');
+    const subEl = document.getElementById('ssSub');
+
+    statusEl.style.display = 'flex';
+    if (behindMin >= 1) {
+      statusEl.className = 'schedule-status behind';
+      iconEl.textContent = '▲';
+      valueEl.textContent = `${fmtMins(behind)} behind schedule`;
+      subEl.textContent = 'Time slipped by with no hourglass running — make it up before bed.';
+    } else if (behindMin <= -1) {
+      statusEl.className = 'schedule-status ontrack';
+      iconEl.textContent = '●';
+      valueEl.textContent = 'On track';
+      subEl.textContent = `${fmtMins(behind)} of buffer before bedtime.`;
+    } else {
+      statusEl.className = 'schedule-status ontrack';
+      iconEl.textContent = '●';
+      valueEl.textContent = 'Right on schedule';
+      subEl.textContent = 'Your remaining tasks fit exactly in the time left.';
+    }
+  }
 
   // List
   const list = document.getElementById('hourglassList');

@@ -123,6 +123,33 @@ input::-webkit-calendar-picker-indicator { filter: invert(0.7); }
 .ghost-btn:hover { color: var(--text); border-color: var(--accent); }
 .link-btn { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; margin-top: 6px; align-self: flex-start; }
 
+/* Behind-schedule banner -------------------------------------------------- */
+.schedule-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.schedule-status.behind {
+  border-color: var(--red);
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.14), rgba(255, 107, 107, 0.04));
+}
+.schedule-status.ontrack {
+  border-color: rgba(78, 203, 141, 0.6);
+  background: linear-gradient(135deg, rgba(78, 203, 141, 0.10), rgba(78, 203, 141, 0.02));
+}
+.ss-main { display: flex; align-items: center; gap: 10px; }
+.ss-icon { font-size: 11px; line-height: 1; }
+.ss-value { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+.ss-sub { font-size: 12px; color: var(--muted); }
+.schedule-status.behind .ss-value,
+.schedule-status.behind .ss-icon { color: var(--red); }
+.schedule-status.ontrack .ss-value,
+.schedule-status.ontrack .ss-icon { color: var(--green); }
+
 /* Settings divider -------------------------------------------------------- */
 .settings-divider {
   display: flex;
