@@ -50,10 +50,25 @@ npm install
 npm start
 ```
 
-## Building a Windows installer
+## Building a standalone Windows app
+
+Produces a self-contained, branded (hourglass icon) app folder under
+`dist/Hourglass-win32-x64/` — no admin rights needed:
+
+```bash
+npm run package
+```
+
+Run `dist/Hourglass-win32-x64/Hourglass.exe`, or copy that folder anywhere and
+make a shortcut to the exe.
+
+## Building a Windows installer (optional)
 
 ```bash
 npm run dist
 ```
 
-Produces an installer under `dist/`.
+Produces an NSIS installer under `dist/`. Note: electron-builder unpacks a
+code-signing toolkit that contains symlinks, so this step needs **Windows
+Developer Mode enabled** (Settings → Privacy & security → For developers) or an
+elevated shell. The `npm run package` route above avoids this entirely.

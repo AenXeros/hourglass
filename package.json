@@ -6,11 +6,13 @@
   "scripts": {
     "start": "electron .",
     "icons": "node scripts/make-icons.js",
+    "package": "npm run icons && electron-packager . Hourglass --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --prune=true --ignore=^/dist --ignore=^/\\.git --ignore=^/scripts",
     "dist": "npm run icons && electron-builder --win"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@electron/packager": "^20.0.3",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "png-to-ico": "^3.0.2",
