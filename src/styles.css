@@ -161,6 +161,8 @@ input::-webkit-calendar-picker-indicator { filter: invert(0.7); }
 .ss-btn:hover { filter: brightness(1.12); }
 
 .hg-borrowed { color: var(--accent); }
+.hg-received { color: var(--green); }
+.hg-given { color: var(--muted); }
 
 /* Reallocate modal -------------------------------------------------------- */
 .realloc-box { width: 500px; gap: 18px; }
@@ -227,6 +229,43 @@ input::-webkit-calendar-picker-indicator { filter: invert(0.7); }
   color: #2b1a00;
   border-color: transparent;
 }
+
+/* Transfer modal ---------------------------------------------------------- */
+.transfer-box { width: 440px; gap: 16px; }
+.tr-from { font-size: 14px; }
+.tr-avail { color: var(--muted); }
+.tr-amount-row { display: flex; align-items: center; gap: 12px; }
+.tr-amount {
+  min-width: 72px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tr-dest-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.tr-dest-list { display: flex; flex-direction: column; gap: 8px; max-height: 38vh; overflow-y: auto; padding-right: 4px; }
+.tr-dest {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: 0.15s;
+}
+.tr-dest:hover { border-color: var(--accent); }
+.tr-dest.selected {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.14), rgba(245, 166, 35, 0.04));
+}
+.tr-dest-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-dest-rem { font-size: 12px; color: var(--muted); flex: 0 0 auto; }
+.tr-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
 
 /* Settings divider -------------------------------------------------------- */
 .settings-divider {

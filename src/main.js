@@ -31,6 +31,9 @@ function loadState() {
     // (time reallocated away from it to catch up on schedule).
     for (const hg of state.hourglasses) {
       if (typeof hg.borrowedSeconds !== 'number') hg.borrowedSeconds = 0;
+      // Net time moved to/from this hourglass via transfers today
+      // (+ received, − given). Resets daily like elapsed/borrowed.
+      if (typeof hg.transferredSeconds !== 'number') hg.transferredSeconds = 0;
     }
   } catch {
     state = { ...DEFAULT_STATE };
@@ -79,6 +82,7 @@ function maybeReset() {
     for (const hg of state.hourglasses) {
       hg.elapsedSeconds = 0;
       hg.borrowedSeconds = 0;
+      hg.transferredSeconds = 0;
     }
     state.lastResetKey = key;
     scheduleSave();
@@ -140,10 +144,19 @@ function makeId() {
   return 'hg_' + Math.random().toString(36).slice(2, 10);
 }
 
-// The most time an hourglass can give up is whatever it still has left
-// (allocation minus time already spent) — you can't pull it into overtime.
+// Effective allocation for today = base goal, minus time pulled away to catch
+// up (borrowed), plus/minus time moved via transfers.
+function effAllocOf(hg) {
+  return Math.max(0, hg.allocatedSeconds - (hg.borrowedSeconds || 0) + (hg.transferredSeconds || 0));
+}
+function remainingOf(hg) {
+  return effAllocOf(hg) - hg.elapsedSeconds;
+}
+
+// The most time an hourglass can give up to catch-up is whatever it still has
+// left (allocation + transfers − time spent) — you can't pull it into overtime.
 function clampBorrow(hg, seconds) {
-  const ceiling = Math.max(0, hg.allocatedSeconds - hg.elapsedSeconds);
+  const ceiling = Math.max(0, hg.allocatedSeconds + (hg.transferredSeconds || 0) - hg.elapsedSeconds);
   return Math.min(Math.max(0, Math.round(seconds || 0)), ceiling);
 }
 
@@ -289,6 +302,7 @@ ipcMain.handle('add-hourglass', (_e, { name, allocatedSeconds, keybind }) => {
     allocatedSeconds: Math.max(0, Math.round(allocatedSeconds || 0)),
     elapsedSeconds: 0,
     borrowedSeconds: 0,
+    transferredSeconds: 0,
     keybind: keybind || '',
   };
   state.hourglasses.push(hg);
@@ -323,6 +337,24 @@ ipcMain.handle('set-borrow', (_e, { id, seconds }) => {
     hg.borrowedSeconds = clampBorrow(hg, seconds);
     saveState();
     broadcastState();
+  }
+  return getPublicState();
+});
+
+// Move time from one hourglass to another. The source can only give what it
+// still has left; the destination's budget grows by the same amount, so the
+// total planned time (and your behind-schedule number) is unchanged.
+ipcMain.handle('transfer-time', (_e, { fromId, toId, seconds }) => {
+  const from = state.hourglasses.find((h) => h.id === fromId);
+  const to = state.hourglasses.find((h) => h.id === toId);
+  if (from && to && from !== to) {
+    const amount = Math.min(Math.max(0, Math.round(seconds || 0)), Math.max(0, remainingOf(from)));
+    if (amount > 0) {
+      from.transferredSeconds = (from.transferredSeconds || 0) - amount;
+      to.transferredSeconds = (to.transferredSeconds || 0) + amount;
+      saveState();
+      broadcastState();
+    }
   }
   return getPublicState();
 });

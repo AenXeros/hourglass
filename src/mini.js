@@ -26,7 +26,7 @@ function render(state) {
     return;
   }
 
-  const effAlloc = Math.max(0, active.allocatedSeconds - (active.borrowedSeconds || 0));
+  const effAlloc = Math.max(0, active.allocatedSeconds - (active.borrowedSeconds || 0) + (active.transferredSeconds || 0));
   const remaining = effAlloc - active.elapsedSeconds;
   const over = remaining < 0;
   // Fill represents time LEFT — it drains from full toward empty like sand.

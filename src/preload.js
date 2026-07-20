@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('hourglass', {
   deleteHourglass: (id) => ipcRenderer.invoke('delete-hourglass', { id }),
   setActive: (id) => ipcRenderer.invoke('set-active', { id }),
   setBorrow: (id, seconds) => ipcRenderer.invoke('set-borrow', { id, seconds }),
+  transferTime: (fromId, toId, seconds) => ipcRenderer.invoke('transfer-time', { fromId, toId, seconds }),
   resetHourglass: (id) => ipcRenderer.invoke('reset-hourglass', { id }),
   resetAll: () => ipcRenderer.invoke('reset-all'),
   collapse: () => ipcRenderer.invoke('collapse'),

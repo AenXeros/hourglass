@@ -120,6 +120,26 @@
     </div>
   </div>
 
+  <!-- Transfer time modal -->
+  <div id="transferModal" class="modal hidden">
+    <div class="modal-box transfer-box">
+      <h2>Transfer time</h2>
+      <div class="tr-from" id="transferFrom">—</div>
+      <div class="tr-amount-row">
+        <button class="rr-btn" id="trMinus">−5m</button>
+        <span class="tr-amount" id="transferAmount">0m</span>
+        <button class="rr-btn" id="trPlus">+5m</button>
+        <button class="rr-btn" id="trMax">All</button>
+      </div>
+      <div class="tr-dest-label">Send to</div>
+      <div id="transferDest" class="tr-dest-list"></div>
+      <div class="modal-actions">
+        <button id="transferCancel" class="ghost-btn">Cancel</button>
+        <button id="transferConfirm" class="primary-btn">Transfer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Reallocate (catch up) modal -->
   <div id="reallocModal" class="modal hidden">
     <div class="modal-box realloc-box">

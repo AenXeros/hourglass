@@ -3,6 +3,8 @@ const api = window.hourglass;
 let state = { wakeTime: '05:00', sleepTime: '23:00', hourglasses: [], activeId: null };
 let editingId = null;
 let reallocOpen = false;
+// Transfer modal working state: { fromId, toId, seconds } while open, else null.
+let transfer = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,10 +59,10 @@ function fmtMins(sec) {
   return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
 }
 
-// Effective allocation = the base goal minus any time reallocated (pulled)
-// away from this hourglass to catch up on schedule.
+// Effective allocation = the base goal, minus time pulled away to catch up
+// (borrowed), plus/minus time moved via transfers with other hourglasses.
 function effAlloc(h) {
-  return Math.max(0, h.allocatedSeconds - (h.borrowedSeconds || 0));
+  return Math.max(0, h.allocatedSeconds - (h.borrowedSeconds || 0) + (h.transferredSeconds || 0));
 }
 
 // How far behind schedule, in seconds (may be negative when on schedule).
@@ -190,6 +192,7 @@ function render() {
     }
   }
   if (reallocOpen) renderReallocModal();
+  if (transfer) renderTransferModal();
 
   // List
   const list = document.getElementById('hourglassList');
@@ -203,6 +206,7 @@ function render() {
     const isActive = state.activeId === hg.id;
     const over = remaining < 0;
     const borrowed = hg.borrowedSeconds || 0;
+    const transferred = hg.transferredSeconds || 0;
     const pct = alloc > 0
       ? Math.min(100, (hg.elapsedSeconds / alloc) * 100)
       : 0;
@@ -218,12 +222,13 @@ function render() {
         </div>
         <div class="hg-time ${over ? 'over' : ''}">${fmtDuration(remaining)} ${over ? '<span class="over-tag">over</span>' : 'left'}</div>
         <div class="hg-bar"><div class="hg-bar-fill" style="width:${pct}%"></div></div>
-        <div class="hg-sub">${fmtDuration(hg.elapsedSeconds)} spent · ${fmtHours(alloc)} h goal${borrowed > 0 ? ` · <span class="hg-borrowed">−${fmtMins(borrowed)} reallocated</span>` : ''}</div>
+        <div class="hg-sub">${fmtDuration(hg.elapsedSeconds)} spent · ${fmtHours(alloc)} h goal${borrowed > 0 ? ` · <span class="hg-borrowed">−${fmtMins(borrowed)} reallocated</span>` : ''}${transferred > 0 ? ` · <span class="hg-received">+${fmtMins(transferred)} received</span>` : ''}${transferred < 0 ? ` · <span class="hg-given">−${fmtMins(-transferred)} given</span>` : ''}</div>
       </div>
       <div class="hg-actions">
         <button class="toggle-btn ${isActive ? 'on' : ''}" data-act="toggle" data-id="${hg.id}">
           ${isActive ? '● Running' : 'Start'}
         </button>
+        <button class="mini-icon" data-act="transfer" data-id="${hg.id}" title="Transfer time to another hourglass">⇄</button>
         <button class="mini-icon" data-act="edit" data-id="${hg.id}" title="Edit">✎</button>
         <button class="mini-icon" data-act="reset" data-id="${hg.id}" title="Reset this timer">↺</button>
         <button class="mini-icon danger" data-act="delete" data-id="${hg.id}" title="Delete">✕</button>
@@ -303,6 +308,8 @@ document.getElementById('hourglassList').addEventListener('click', async (e) => 
     if (confirm(`Delete "${hg ? hg.name : 'this hourglass'}"?`)) {
       state = await api.deleteHourglass(id);
     }
+  } else if (act === 'transfer') {
+    openTransfer(id);
   } else if (act === 'edit') {
     openEdit(id);
   }
@@ -389,7 +396,7 @@ function renderReallocModal() {
 
   listEl.innerHTML = '';
   for (const hg of state.hourglasses) {
-    const ceiling = Math.max(0, hg.allocatedSeconds - hg.elapsedSeconds); // max pullable
+    const ceiling = Math.max(0, hg.allocatedSeconds + (hg.transferredSeconds || 0) - hg.elapsedSeconds); // max pullable
     const borrowed = hg.borrowedSeconds || 0;
     const spareLeft = Math.max(0, ceiling - borrowed); // task time still remaining
     const canPullMore = spareLeft > 0;
@@ -429,7 +436,7 @@ document.getElementById('reallocList').addEventListener('click', async (e) => {
   const id = btn.dataset.id;
   const hg = state.hourglasses.find((h) => h.id === id);
   if (!hg) return;
-  const ceiling = Math.max(0, hg.allocatedSeconds - hg.elapsedSeconds);
+  const ceiling = Math.max(0, hg.allocatedSeconds + (hg.transferredSeconds || 0) - hg.elapsedSeconds);
   const borrowed = hg.borrowedSeconds || 0;
   let target = borrowed;
   switch (btn.dataset.ract) {
@@ -441,6 +448,82 @@ document.getElementById('reallocList').addEventListener('click', async (e) => {
   target = Math.max(0, Math.min(ceiling, target));
   state = await api.setBorrow(id, target);
   render();
+});
+
+// ---------------------------------------------------------------------------
+// Transfer time modal
+// ---------------------------------------------------------------------------
+const transferModal = document.getElementById('transferModal');
+
+function openTransfer(id) {
+  transfer = { fromId: id, toId: null, seconds: 0 };
+  transferModal.classList.remove('hidden');
+  renderTransferModal();
+}
+function closeTransfer() {
+  transfer = null;
+  transferModal.classList.add('hidden');
+}
+
+function availToTransfer(hg) {
+  return Math.max(0, effAlloc(hg) - hg.elapsedSeconds);
+}
+
+function renderTransferModal() {
+  if (!transfer) return;
+  const from = state.hourglasses.find((h) => h.id === transfer.fromId);
+  if (!from) { closeTransfer(); return; }
+  const avail = availToTransfer(from);
+  transfer.seconds = Math.max(0, Math.min(transfer.seconds, avail));
+
+  document.getElementById('transferFrom').innerHTML =
+    `From <strong>${escapeHtml(from.name)}</strong> · <span class="tr-avail">${fmtMins(avail)} available</span>`;
+  document.getElementById('transferAmount').textContent = fmtMins(transfer.seconds);
+
+  const destEl = document.getElementById('transferDest');
+  destEl.innerHTML = '';
+  const others = state.hourglasses.filter((h) => h.id !== transfer.fromId);
+  if (!others.length) {
+    destEl.innerHTML = '<div class="tr-empty">No other hourglasses to send to.</div>';
+  }
+  for (const h of others) {
+    const rem = availToTransfer(h);
+    const btn = document.createElement('button');
+    btn.className = 'tr-dest' + (transfer.toId === h.id ? ' selected' : '');
+    btn.dataset.dest = h.id;
+    btn.innerHTML = `<span class="tr-dest-name">${escapeHtml(h.name)}</span><span class="tr-dest-rem">${fmtMins(rem)} left</span>`;
+    destEl.appendChild(btn);
+  }
+
+  document.getElementById('trMinus').disabled = transfer.seconds <= 0;
+  document.getElementById('trPlus').disabled = transfer.seconds >= avail;
+  document.getElementById('trMax').disabled = avail <= 0;
+  document.getElementById('transferConfirm').disabled = !(transfer.seconds > 0 && transfer.toId);
+}
+
+document.getElementById('trMinus').addEventListener('click', () => {
+  if (transfer) { transfer.seconds -= STEP; renderTransferModal(); }
+});
+document.getElementById('trPlus').addEventListener('click', () => {
+  if (transfer) { transfer.seconds += STEP; renderTransferModal(); }
+});
+document.getElementById('trMax').addEventListener('click', () => {
+  const from = transfer && state.hourglasses.find((h) => h.id === transfer.fromId);
+  if (from) { transfer.seconds = availToTransfer(from); renderTransferModal(); }
+});
+document.getElementById('transferDest').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-dest]');
+  if (btn && transfer) { transfer.toId = btn.dataset.dest; renderTransferModal(); }
+});
+document.getElementById('transferCancel').addEventListener('click', closeTransfer);
+document.getElementById('transferConfirm').addEventListener('click', async () => {
+  if (!transfer || !transfer.toId || transfer.seconds <= 0) return;
+  state = await api.transferTime(transfer.fromId, transfer.toId, transfer.seconds);
+  closeTransfer();
+  render();
+});
+transferModal.addEventListener('click', (e) => {
+  if (e.target === transferModal) closeTransfer();
 });
 
 // ---------------------------------------------------------------------------
