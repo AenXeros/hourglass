@@ -251,15 +251,23 @@ function renderColdCall() {
   const callsEl = document.getElementById('ccCalls');
 
   // Don't clobber a field the user is currently editing.
+  const winEl = document.getElementById('ccWindowEnabled');
+  const winStartEl = document.getElementById('ccWindowStart');
+  const winEndEl = document.getElementById('ccWindowEnd');
+
   if (document.activeElement !== enabledEl) enabledEl.checked = !!cc.enabled;
   if (document.activeElement !== intervalEl) intervalEl.value = cc.intervalMinutes || 30;
   if (document.activeElement !== callsEl) callsEl.value = cc.callsPerReminder || 5;
+  if (document.activeElement !== winEl) winEl.checked = !!cc.windowEnabled;
+  if (document.activeElement !== winStartEl) winStartEl.value = cc.windowStart || '14:00';
+  if (document.activeElement !== winEndEl) winEndEl.value = cc.windowEnd || '20:00';
 
   const nextEl = document.getElementById('ccNext');
   if (!cc.enabled) {
     nextEl.textContent = 'Off';
   } else if (!cc.nextDueAt) {
-    nextEl.textContent = '—';
+    // Main pauses the cycle (nextDueAt = null) outside the active hours.
+    nextEl.textContent = cc.windowEnabled ? 'Outside hours' : '—';
   } else {
     nextEl.textContent = fmtDuration(Math.max(0, Math.ceil((cc.nextDueAt - Date.now()) / 1000)));
   }
@@ -337,12 +345,15 @@ async function pushColdCallConfig() {
     enabled: document.getElementById('ccEnabled').checked,
     intervalMinutes: parseInt(document.getElementById('ccInterval').value, 10) || 30,
     callsPerReminder: parseInt(document.getElementById('ccCalls').value, 10) || 5,
+    windowEnabled: document.getElementById('ccWindowEnabled').checked,
+    windowStart: document.getElementById('ccWindowStart').value || '14:00',
+    windowEnd: document.getElementById('ccWindowEnd').value || '20:00',
   });
   render();
 }
-document.getElementById('ccEnabled').addEventListener('change', pushColdCallConfig);
-document.getElementById('ccInterval').addEventListener('change', pushColdCallConfig);
-document.getElementById('ccCalls').addEventListener('change', pushColdCallConfig);
+for (const id of ['ccEnabled', 'ccInterval', 'ccCalls', 'ccWindowEnabled', 'ccWindowStart', 'ccWindowEnd']) {
+  document.getElementById(id).addEventListener('change', pushColdCallConfig);
+}
 
 document.querySelector('.cc-log').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-cc]');

@@ -16,6 +16,9 @@ const DEFAULT_COLD_CALL = {
   doneToday: 0,          // total calls logged since the 5 AM reset
   remindersToday: 0,
   awaitingLog: false,    // a reminder fired and hasn't been logged yet
+  windowEnabled: false,  // only remind during set hours?
+  windowStart: '14:00',
+  windowEnd: '20:00',
 };
 
 const DEFAULT_STATE = {
@@ -115,7 +118,8 @@ function maybeReset() {
       cc.doneToday = 0;
       cc.remindersToday = 0;
       cc.awaitingLog = false;
-      cc.nextDueAt = cc.enabled ? Date.now() + cc.intervalMinutes * 60000 : null;
+      // checkColdCall reschedules on the next tick, respecting active hours.
+      cc.nextDueAt = null;
     }
     state.lastResetKey = key;
     scheduleSave();
@@ -146,10 +150,42 @@ function notifyColdCall(count) {
   }
 }
 
+// Is `now` inside the HH:MM..HH:MM window? Handles windows that cross
+// midnight (e.g. 20:00 → 02:00).
+function withinWindow(now, start, end) {
+  const toMin = (s) => {
+    const [h, m] = String(s || '0:0').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const s = toMin(start);
+  const e = toMin(end);
+  if (s === e) return true; // identical times = always active
+  return s < e ? cur >= s && cur < e : cur >= s || cur < e;
+}
+
 function checkColdCall() {
   const cc = state.coldCall;
-  if (!cc || !cc.enabled || !cc.nextDueAt) return;
+  if (!cc || !cc.enabled) return;
   const now = Date.now();
+
+  // Outside the active hours: hold the cycle entirely. Any already-fired
+  // reminder stays loggable, we just stop scheduling new ones.
+  if (cc.windowEnabled && !withinWindow(new Date(now), cc.windowStart, cc.windowEnd)) {
+    if (cc.nextDueAt !== null) {
+      cc.nextDueAt = null;
+      scheduleSave();
+    }
+    return;
+  }
+
+  // Inside the window (or no window): make sure the countdown is running.
+  if (!cc.nextDueAt) {
+    cc.nextDueAt = now + Math.max(1, cc.intervalMinutes) * 60000;
+    scheduleSave();
+    return;
+  }
+
   if (now >= cc.nextDueAt) {
     cc.awaitingLog = true;
     cc.remindersToday += 1;
@@ -468,11 +504,18 @@ ipcMain.handle('set-cold-call', (_e, cfg = {}) => {
   if (typeof cfg.callsPerReminder === 'number') {
     cc.callsPerReminder = Math.min(999, Math.max(1, Math.round(cfg.callsPerReminder)));
   }
+  const oldWindow = `${cc.windowEnabled}|${cc.windowStart}|${cc.windowEnd}`;
+  if (typeof cfg.windowEnabled === 'boolean') cc.windowEnabled = cfg.windowEnabled;
+  if (typeof cfg.windowStart === 'string') cc.windowStart = cfg.windowStart;
+  if (typeof cfg.windowEnd === 'string') cc.windowEnd = cfg.windowEnd;
+  const windowChanged = oldWindow !== `${cc.windowEnabled}|${cc.windowStart}|${cc.windowEnd}`;
+
   if (cc.enabled) {
-    // Restart the countdown when switching on or changing the interval.
-    if (!wasEnabled || cc.intervalMinutes !== oldInterval || !cc.nextDueAt) {
-      cc.nextDueAt = Date.now() + cc.intervalMinutes * 60000;
+    // Restart the countdown when switching on, or changing interval/hours.
+    if (!wasEnabled || cc.intervalMinutes !== oldInterval || windowChanged) {
+      cc.nextDueAt = null;
     }
+    checkColdCall(); // reschedule now, honouring the active-hours window
   } else {
     cc.nextDueAt = null;
     cc.awaitingLog = false;
