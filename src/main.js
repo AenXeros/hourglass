@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -8,12 +8,23 @@ const fs = require('fs');
 const DATA_FILE = path.join(app.getPath('userData'), 'hourglass-data.json');
 const ICON_PATH = path.join(__dirname, '..', 'build', 'icon.ico');
 
+const DEFAULT_COLD_CALL = {
+  enabled: false,
+  intervalMinutes: 30,   // remind me every X minutes
+  callsPerReminder: 5,   // ...to make X cold calls
+  nextDueAt: null,       // epoch ms of the next reminder
+  doneToday: 0,          // total calls logged since the 5 AM reset
+  remindersToday: 0,
+  awaitingLog: false,    // a reminder fired and hasn't been logged yet
+};
+
 const DEFAULT_STATE = {
   wakeTime: '05:00',
   sleepTime: '23:00',
   hourglasses: [],
   activeId: null,
   lastResetKey: null,
+  coldCall: { ...DEFAULT_COLD_CALL },
 };
 
 let state = { ...DEFAULT_STATE };
@@ -24,7 +35,8 @@ let saveTimer = null;
 function loadState() {
   try {
     const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
+    // Tolerate a UTF-8 BOM, which some editors/tools prepend.
+    const parsed = JSON.parse(raw.replace(/^﻿/, ''));
     state = { ...DEFAULT_STATE, ...parsed };
     if (!Array.isArray(state.hourglasses)) state.hourglasses = [];
     // Migrate older data: every hourglass needs a borrowedSeconds field
@@ -35,7 +47,20 @@ function loadState() {
       // (+ received, − given). Resets daily like elapsed/borrowed.
       if (typeof hg.transferredSeconds !== 'number') hg.transferredSeconds = 0;
     }
-  } catch {
+    state.coldCall = { ...DEFAULT_COLD_CALL, ...(parsed.coldCall || {}) };
+  } catch (err) {
+    // The file exists but couldn't be read/parsed. Preserve a copy BEFORE we
+    // start saving defaults over it — otherwise one corrupt file silently
+    // destroys the user's entire setup.
+    try {
+      if (fs.existsSync(DATA_FILE)) {
+        const backup = `${DATA_FILE.replace(/\.json$/, '')}.corrupt-${Date.now()}.json`;
+        fs.copyFileSync(DATA_FILE, backup);
+        console.error(`Unreadable data file; original preserved at ${backup}`, err);
+      }
+    } catch (copyErr) {
+      console.error('Could not preserve unreadable data file:', copyErr);
+    }
     state = { ...DEFAULT_STATE };
   }
 }
@@ -84,6 +109,14 @@ function maybeReset() {
       hg.borrowedSeconds = 0;
       hg.transferredSeconds = 0;
     }
+    // Cold-call tally starts fresh each day too.
+    const cc = state.coldCall;
+    if (cc) {
+      cc.doneToday = 0;
+      cc.remindersToday = 0;
+      cc.awaitingLog = false;
+      cc.nextDueAt = cc.enabled ? Date.now() + cc.intervalMinutes * 60000 : null;
+    }
     state.lastResetKey = key;
     scheduleSave();
     return true;
@@ -95,8 +128,42 @@ function maybeReset() {
 // Timer tick — runs in the main process so it keeps counting regardless of
 // which window is visible.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Cold-call reminders
+// ---------------------------------------------------------------------------
+function notifyColdCall(count) {
+  try {
+    if (!Notification.isSupported()) return;
+    const n = new Notification({
+      title: 'Cold call time',
+      body: `Time to make ${count} cold call${count === 1 ? '' : 's'}.`,
+      icon: ICON_PATH,
+    });
+    n.on('click', () => expandToMain());
+    n.show();
+  } catch (err) {
+    console.error('Cold-call notification failed:', err);
+  }
+}
+
+function checkColdCall() {
+  const cc = state.coldCall;
+  if (!cc || !cc.enabled || !cc.nextDueAt) return;
+  const now = Date.now();
+  if (now >= cc.nextDueAt) {
+    cc.awaitingLog = true;
+    cc.remindersToday += 1;
+    // Schedule the next one from now, so reminders keep coming on cadence
+    // even if this one goes unlogged.
+    cc.nextDueAt = now + Math.max(1, cc.intervalMinutes) * 60000;
+    notifyColdCall(cc.callsPerReminder);
+    scheduleSave();
+  }
+}
+
 function tick() {
   maybeReset();
+  checkColdCall();
   if (state.activeId) {
     const hg = state.hourglasses.find((h) => h.id === state.activeId);
     if (hg) {
@@ -134,6 +201,7 @@ function getPublicState() {
     hourglasses: state.hourglasses,
     activeId: state.activeId,
     lastResetKey: state.lastResetKey,
+    coldCall: state.coldCall,
   };
 }
 
@@ -388,6 +456,48 @@ ipcMain.handle('reset-all', () => {
   return getPublicState();
 });
 
+// --- Cold-call reminders ---------------------------------------------------
+ipcMain.handle('set-cold-call', (_e, cfg = {}) => {
+  const cc = state.coldCall;
+  const wasEnabled = cc.enabled;
+  const oldInterval = cc.intervalMinutes;
+  if (typeof cfg.enabled === 'boolean') cc.enabled = cfg.enabled;
+  if (typeof cfg.intervalMinutes === 'number') {
+    cc.intervalMinutes = Math.min(600, Math.max(1, Math.round(cfg.intervalMinutes)));
+  }
+  if (typeof cfg.callsPerReminder === 'number') {
+    cc.callsPerReminder = Math.min(999, Math.max(1, Math.round(cfg.callsPerReminder)));
+  }
+  if (cc.enabled) {
+    // Restart the countdown when switching on or changing the interval.
+    if (!wasEnabled || cc.intervalMinutes !== oldInterval || !cc.nextDueAt) {
+      cc.nextDueAt = Date.now() + cc.intervalMinutes * 60000;
+    }
+  } else {
+    cc.nextDueAt = null;
+    cc.awaitingLog = false;
+  }
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+ipcMain.handle('log-cold-calls', (_e, { count }) => {
+  const cc = state.coldCall;
+  cc.doneToday = Math.max(0, (cc.doneToday || 0) + Math.max(0, Math.round(count || 0)));
+  cc.awaitingLog = false;
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+ipcMain.handle('reset-cold-calls', () => {
+  state.coldCall.doneToday = 0;
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
 ipcMain.handle('collapse', () => collapseToMini());
 ipcMain.handle('expand', () => expandToMain());
 ipcMain.handle('toggle-view', () => toggleView());
@@ -414,6 +524,8 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    // Required for Windows toast notifications to show the app identity.
+    if (process.platform === 'win32') app.setAppUserModelId('com.hourglass.app');
     loadState();
     maybeReset();
     createMainWindow();

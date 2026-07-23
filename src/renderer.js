@@ -236,6 +236,44 @@ function render() {
     `;
     list.appendChild(card);
   }
+
+  renderColdCall();
+}
+
+// ---------------------------------------------------------------------------
+// Cold call reminder
+// ---------------------------------------------------------------------------
+function renderColdCall() {
+  const cc = state.coldCall || {};
+  const card = document.getElementById('coldCallCard');
+  const enabledEl = document.getElementById('ccEnabled');
+  const intervalEl = document.getElementById('ccInterval');
+  const callsEl = document.getElementById('ccCalls');
+
+  // Don't clobber a field the user is currently editing.
+  if (document.activeElement !== enabledEl) enabledEl.checked = !!cc.enabled;
+  if (document.activeElement !== intervalEl) intervalEl.value = cc.intervalMinutes || 30;
+  if (document.activeElement !== callsEl) callsEl.value = cc.callsPerReminder || 5;
+
+  const nextEl = document.getElementById('ccNext');
+  if (!cc.enabled) {
+    nextEl.textContent = 'Off';
+  } else if (!cc.nextDueAt) {
+    nextEl.textContent = '—';
+  } else {
+    nextEl.textContent = fmtDuration(Math.max(0, Math.ceil((cc.nextDueAt - Date.now()) / 1000)));
+  }
+
+  document.getElementById('ccToday').textContent = cc.doneToday || 0;
+
+  const due = !!cc.awaitingLog;
+  card.classList.toggle('due', due);
+  const dueEl = document.getElementById('ccDue');
+  dueEl.style.display = due ? '' : 'none';
+  if (due) {
+    const n = cc.callsPerReminder || 1;
+    dueEl.textContent = `Time to make ${n} cold call${n === 1 ? '' : 's'} — how many did you do?`;
+  }
 }
 
 function escapeHtml(str) {
@@ -290,6 +328,38 @@ document.getElementById('addForm').addEventListener('submit', async (e) => {
   const kb = document.getElementById('hgKeybind');
   kb.value = '';
   kb.dataset.accel = '';
+  render();
+});
+
+// Cold call reminder controls
+async function pushColdCallConfig() {
+  state = await api.setColdCall({
+    enabled: document.getElementById('ccEnabled').checked,
+    intervalMinutes: parseInt(document.getElementById('ccInterval').value, 10) || 30,
+    callsPerReminder: parseInt(document.getElementById('ccCalls').value, 10) || 5,
+  });
+  render();
+}
+document.getElementById('ccEnabled').addEventListener('change', pushColdCallConfig);
+document.getElementById('ccInterval').addEventListener('change', pushColdCallConfig);
+document.getElementById('ccCalls').addEventListener('change', pushColdCallConfig);
+
+document.querySelector('.cc-log').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-cc]');
+  if (!btn) return;
+  state = await api.logColdCalls(parseInt(btn.dataset.cc, 10) || 0);
+  render();
+});
+document.getElementById('ccCustomAdd').addEventListener('click', async () => {
+  const el = document.getElementById('ccCustom');
+  const n = parseInt(el.value, 10);
+  if (!n || n <= 0) return;
+  state = await api.logColdCalls(n);
+  el.value = '';
+  render();
+});
+document.getElementById('ccResetToday').addEventListener('click', async () => {
+  state = await api.resetColdCalls();
   render();
 });
 

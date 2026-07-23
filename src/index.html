@@ -88,6 +88,50 @@
       </form>
       <p class="hint">Tip: use a modifier like <code>Ctrl+Shift+1</code> so the shortcut works globally without interrupting typing. Press <code>Shift+Esc</code> anytime to shrink into the mini pill.</p>
     </section>
+
+    <!-- Cold call reminder -->
+    <section class="card coldcall-card" id="coldCallCard">
+      <h2>Cold Calls</h2>
+
+      <div class="cc-config">
+        <label class="cc-toggle">
+          <input type="checkbox" id="ccEnabled" />
+          <span>Remind me</span>
+        </label>
+        <div class="field">
+          <label for="ccInterval">Every (min)</label>
+          <input type="number" id="ccInterval" min="1" max="600" step="1" />
+        </div>
+        <div class="field">
+          <label for="ccCalls">Calls each time</label>
+          <input type="number" id="ccCalls" min="1" max="999" step="1" />
+        </div>
+      </div>
+
+      <div class="cc-status">
+        <div class="stat">
+          <span class="stat-label">Next reminder</span>
+          <span class="stat-value" id="ccNext">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Calls today</span>
+          <span class="stat-value" id="ccToday">0</span>
+        </div>
+      </div>
+
+      <div class="cc-due" id="ccDue" style="display:none">Time to make your cold calls — how many did you do?</div>
+
+      <div class="cc-log">
+        <span class="cc-log-label">Log calls</span>
+        <button class="cc-btn" data-cc="1">+1</button>
+        <button class="cc-btn" data-cc="2">+2</button>
+        <button class="cc-btn" data-cc="3">+3</button>
+        <input type="number" id="ccCustom" class="cc-custom" min="1" max="999" step="1" placeholder="#" />
+        <button class="cc-btn" id="ccCustomAdd">Add</button>
+        <button class="cc-btn ghost" data-cc="0">None</button>
+        <button class="cc-btn ghost" id="ccResetToday">Reset today</button>
+      </div>
+    </section>
   </main>
 
   <!-- Edit modal -->
