@@ -151,7 +151,8 @@ function notifyColdCall(count) {
 }
 
 // Is `now` inside the HH:MM..HH:MM window? Handles windows that cross
-// midnight (e.g. 20:00 → 02:00).
+// midnight (e.g. 20:00 → 02:00). The closing minute is INCLUSIVE, so a
+// reminder landing exactly on the closing time still fires.
 function withinWindow(now, start, end) {
   const toMin = (s) => {
     const [h, m] = String(s || '0:0').split(':').map(Number);
@@ -161,7 +162,7 @@ function withinWindow(now, start, end) {
   const s = toMin(start);
   const e = toMin(end);
   if (s === e) return true; // identical times = always active
-  return s < e ? cur >= s && cur < e : cur >= s || cur < e;
+  return s < e ? cur >= s && cur <= e : cur >= s || cur <= e;
 }
 
 function checkColdCall() {

@@ -245,8 +245,8 @@ function render() {
 // ---------------------------------------------------------------------------
 // How many calls you'd make in a day if you hit every reminder.
 // The first reminder lands one interval after the active period opens, and
-// none fires at the closing moment, so a W-minute window at an I-minute
-// cadence yields ceil(W / I) − 1 reminders.
+// the closing time is inclusive, so a W-minute window at an I-minute cadence
+// yields floor(W / I) reminders.
 function coldCallGoal() {
   const cc = state.coldCall || {};
   if (!cc.enabled) return null;
@@ -267,7 +267,7 @@ function coldCallGoal() {
     windowMinutes = hoursAwake() / 60;
   }
 
-  const reminders = Math.max(0, Math.ceil(windowMinutes / interval) - 1);
+  const reminders = Math.max(0, Math.floor(windowMinutes / interval));
   return reminders * perReminder;
 }
 
