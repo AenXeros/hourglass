@@ -243,6 +243,34 @@ function render() {
 // ---------------------------------------------------------------------------
 // Cold call reminder
 // ---------------------------------------------------------------------------
+// How many calls you'd make in a day if you hit every reminder.
+// The first reminder lands one interval after the active period opens, and
+// none fires at the closing moment, so a W-minute window at an I-minute
+// cadence yields ceil(W / I) − 1 reminders.
+function coldCallGoal() {
+  const cc = state.coldCall || {};
+  if (!cc.enabled) return null;
+  const interval = Math.max(1, cc.intervalMinutes || 30);
+  const perReminder = Math.max(1, cc.callsPerReminder || 1);
+
+  let windowMinutes;
+  if (cc.windowEnabled) {
+    const toMin = (s) => {
+      const [h, m] = String(s || '0:0').split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const s = toMin(cc.windowStart);
+    const e = toMin(cc.windowEnd);
+    windowMinutes = s === e ? 1440 : (e - s + 1440) % 1440;
+  } else {
+    // No window set — fall back to your waking hours.
+    windowMinutes = hoursAwake() / 60;
+  }
+
+  const reminders = Math.max(0, Math.ceil(windowMinutes / interval) - 1);
+  return reminders * perReminder;
+}
+
 function renderColdCall() {
   const cc = state.coldCall || {};
   const card = document.getElementById('coldCallCard');
@@ -272,7 +300,12 @@ function renderColdCall() {
     nextEl.textContent = fmtDuration(Math.max(0, Math.ceil((cc.nextDueAt - Date.now()) / 1000)));
   }
 
-  document.getElementById('ccToday').textContent = cc.doneToday || 0;
+  const done = cc.doneToday || 0;
+  const goal = coldCallGoal();
+  const todayEl = document.getElementById('ccToday');
+  todayEl.textContent = done;
+  todayEl.classList.toggle('met', goal !== null && goal > 0 && done >= goal);
+  document.getElementById('ccGoal').textContent = goal === null ? '—' : goal;
 
   const due = !!cc.awaitingLog;
   card.classList.toggle('due', due);
