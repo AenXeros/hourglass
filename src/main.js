@@ -37,7 +37,7 @@ const DEFAULT_STATE = {
     entertainmentId: '', // hourglass for YouTube / Instagram ('' = auto by name)
     quranId: '',         // hourglass for quran.com
     learnId: '',         // hourglass for the excluded channel ('' = auto: Physics)
-    excludeChannel: 'Chris Doner', // real channel: "Chris Doner" / @donerphysics
+    excludeChannel: 'Doner', // matches his name "Chris Doner" AND handle @donerphysics
   },
 };
 
