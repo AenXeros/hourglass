@@ -290,7 +290,7 @@ function renderAutoSwitch() {
   if (document.activeElement !== excludeEl) excludeEl.value = a.excludeChannel || '';
   fillHourglassSelect(document.getElementById('asEnt'), a.entertainmentId, false);
   fillHourglassSelect(document.getElementById('asQuran'), a.quranId, false);
-  fillHourglassSelect(document.getElementById('asLearn'), a.learnId, true);
+  fillHourglassSelect(document.getElementById('asLearn'), a.learnId, false);
 
   const extPathEl = document.getElementById('asExtPath');
   if (extPathEl && state.extensionPath) extPathEl.textContent = state.extensionPath;

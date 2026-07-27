@@ -36,8 +36,8 @@ const DEFAULT_STATE = {
     enabled: false,
     entertainmentId: '', // hourglass for YouTube / Instagram ('' = auto by name)
     quranId: '',         // hourglass for quran.com
-    learnId: '',         // hourglass for the excluded channel ('' = none)
-    excludeChannel: 'Chris Donor',
+    learnId: '',         // hourglass for the excluded channel ('' = auto: Physics)
+    excludeChannel: 'Chris Doner', // real channel: "Chris Doner" / @donerphysics
   },
 };
 
@@ -256,7 +256,8 @@ function resolveRole(role) {
   };
   if (role === 'ent') return exists(cfg.entertainmentId) ? cfg.entertainmentId : byName(/entertain|youtube|instagram/i);
   if (role === 'quran') return exists(cfg.quranId) ? cfg.quranId : byName(/quran|prayer/i);
-  if (role === 'learn') return exists(cfg.learnId) ? cfg.learnId : null;
+  // The excluded "learning" channel defaults to the Physics timer.
+  if (role === 'learn') return exists(cfg.learnId) ? cfg.learnId : byName(/physics/i);
   return null;
 }
 
