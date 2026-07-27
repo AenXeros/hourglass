@@ -3,6 +3,8 @@ const api = window.hourglass;
 let state = { wakeTime: '05:00', sleepTime: '23:00', hourglasses: [], activeId: null };
 let editingId = null;
 let reallocOpen = false;
+let activeTab = 'timers';
+const expandedDays = new Set(); // record-panel days currently expanded
 // Transfer modal working state: { fromId, toId, seconds } while open, else null.
 let transfer = null;
 
@@ -39,6 +41,28 @@ function hoursAwake() {
   let diff = (sleep - wake + 1440) % 1440;
   if (diff === 0) diff = 1440;
   return diff * 60; // seconds
+}
+
+// The reset-period date key for a moment (the "hourglass day" starts at 5 AM).
+function resetKeyFor(d = new Date()) {
+  const x = new Date(d);
+  if (x.getHours() < 5) x.setDate(x.getDate() - 1);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const day = String(x.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// "July 27" style label for a YYYY-MM-DD key, with Today/Yesterday hints.
+function labelForDay(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const base = date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+  const todayKey = resetKeyFor();
+  const yKey = resetKeyFor(new Date(Date.now() - 86400000));
+  if (key === todayKey) return { base, tag: 'Today' };
+  if (key === yKey) return { base, tag: 'Yesterday' };
+  return { base: `${base}, ${y}`, tag: '' };
 }
 
 // Seconds from right now until the next occurrence of the sleep time.
@@ -238,6 +262,7 @@ function render() {
   }
 
   renderColdCall();
+  if (activeTab === 'record') renderRecord();
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +342,72 @@ function renderColdCall() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Daily record
+// ---------------------------------------------------------------------------
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('timersPanel').style.display = tab === 'timers' ? '' : 'none';
+  document.getElementById('recordPanel').style.display = tab === 'record' ? '' : 'none';
+  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  if (tab === 'record') renderRecord();
+}
+
+// Merge archived history with today's live totals into { key: [{name, seconds}] }.
+function buildRecordDays() {
+  const days = {};
+  const hist = state.history || {};
+  for (const key of Object.keys(hist)) {
+    days[key] = (hist[key] || []).map((e) => ({ name: e.name, seconds: e.seconds }));
+  }
+  // Today is live from current elapsed (not yet archived).
+  const todayKey = state.lastResetKey || resetKeyFor();
+  days[todayKey] = state.hourglasses
+    .filter((h) => h.elapsedSeconds > 0)
+    .map((h) => ({ name: h.name, seconds: h.elapsedSeconds }));
+  return { days, todayKey };
+}
+
+function renderRecord() {
+  const listEl = document.getElementById('recordList');
+  const emptyEl = document.getElementById('recordEmpty');
+  const { days } = buildRecordDays();
+
+  // Only show days that actually have tracked time, newest first.
+  const keys = Object.keys(days)
+    .filter((k) => days[k].length > 0)
+    .sort()
+    .reverse();
+
+  emptyEl.style.display = keys.length ? 'none' : 'block';
+  listEl.innerHTML = '';
+
+  for (const key of keys) {
+    const entries = days[key].slice().sort((a, b) => b.seconds - a.seconds);
+    const total = entries.reduce((s, e) => s + e.seconds, 0);
+    const { base, tag } = labelForDay(key);
+    const open = expandedDays.has(key);
+
+    const dayEl = document.createElement('div');
+    dayEl.className = 'rec-day' + (open ? ' open' : '');
+    dayEl.innerHTML = `
+      <button class="rec-day-head" data-day="${key}">
+        <span class="rec-caret">▸</span>
+        <span class="rec-date">${escapeHtml(base)}${tag ? ` <span class="rec-tag">${tag}</span>` : ''}</span>
+        <span class="rec-total">${fmtMins(total)}</span>
+      </button>
+      <div class="rec-tasks">
+        ${entries.map((e) => `
+          <div class="rec-task">
+            <span class="rec-task-name">${escapeHtml(e.name)}</span>
+            <span class="rec-task-time">${fmtDuration(e.seconds)}</span>
+          </div>`).join('')}
+      </div>
+    `;
+    listEl.appendChild(dayEl);
+  }
+}
+
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -370,6 +461,22 @@ document.getElementById('addForm').addEventListener('submit', async (e) => {
   kb.value = '';
   kb.dataset.accel = '';
   render();
+});
+
+// Tab switching
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab');
+  if (btn) switchTab(btn.dataset.tab);
+});
+
+// Record day expand/collapse
+document.getElementById('recordList').addEventListener('click', (e) => {
+  const head = e.target.closest('[data-day]');
+  if (!head) return;
+  const key = head.dataset.day;
+  if (expandedDays.has(key)) expandedDays.delete(key);
+  else expandedDays.add(key);
+  renderRecord();
 });
 
 // Cold call reminder controls

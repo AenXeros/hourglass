@@ -18,7 +18,12 @@
     <div class="reset-note" id="resetNote">Resets daily at 5:00 AM</div>
   </header>
 
-  <main class="content">
+  <nav class="tabs">
+    <button class="tab active" data-tab="timers">Timers</button>
+    <button class="tab" data-tab="record">Record</button>
+  </nav>
+
+  <main class="content" id="timersPanel">
     <!-- Behind-schedule banner: how much time has slipped by with no hourglass running -->
     <section id="scheduleStatus" class="schedule-status" style="display:none">
       <span class="ss-value" id="ssValue">—</span>
@@ -151,6 +156,16 @@
         <button class="cc-btn ghost" id="ccResetToday">Reset today</button>
       </div>
     </section>
+  </main>
+
+  <!-- Record panel -->
+  <main class="content" id="recordPanel" style="display:none">
+    <section class="list-header">
+      <h2>Daily Record</h2>
+      <span class="record-sub">Time spent on each task, per day</span>
+    </section>
+    <div id="recordList" class="record-list"></div>
+    <p id="recordEmpty" class="empty" style="display:none">No time tracked yet. Start a timer and it'll show up here.</p>
   </main>
 
   <!-- Edit modal -->

@@ -28,7 +28,11 @@ const DEFAULT_STATE = {
   activeId: null,
   lastResetKey: null,
   coldCall: { ...DEFAULT_COLD_CALL },
+  // Per-day history: { 'YYYY-MM-DD': [ { id, name, seconds }, ... ] }
+  history: {},
 };
+
+const HISTORY_MAX_DAYS = 120;
 
 let state = { ...DEFAULT_STATE };
 let mainWindow = null;
@@ -51,6 +55,10 @@ function loadState() {
       if (typeof hg.transferredSeconds !== 'number') hg.transferredSeconds = 0;
     }
     state.coldCall = { ...DEFAULT_COLD_CALL, ...(parsed.coldCall || {}) };
+    state.history =
+      parsed.history && typeof parsed.history === 'object' && !Array.isArray(parsed.history)
+        ? parsed.history
+        : {};
   } catch (err) {
     // The file exists but couldn't be read/parsed. Preserve a copy BEFORE we
     // start saving defaults over it — otherwise one corrupt file silently
@@ -65,6 +73,8 @@ function loadState() {
       console.error('Could not preserve unreadable data file:', copyErr);
     }
     state = { ...DEFAULT_STATE };
+    state.coldCall = { ...DEFAULT_COLD_CALL };
+    state.history = {};
   }
 }
 
@@ -105,6 +115,19 @@ function currentResetKey(now = new Date()) {
 function maybeReset() {
   const key = currentResetKey();
   if (state.lastResetKey !== key) {
+    // Archive the finishing day's time-per-task before wiping it.
+    if (state.lastResetKey) {
+      const entries = state.hourglasses
+        .filter((hg) => hg.elapsedSeconds > 0)
+        .map((hg) => ({ id: hg.id, name: hg.name, seconds: hg.elapsedSeconds }));
+      if (entries.length) {
+        if (!state.history) state.history = {};
+        state.history[state.lastResetKey] = entries;
+      }
+      // Keep history bounded.
+      const keys = Object.keys(state.history).sort();
+      while (keys.length > HISTORY_MAX_DAYS) delete state.history[keys.shift()];
+    }
     // New day: wipe elapsed time and any reallocated (borrowed) time so the
     // plan starts fresh.
     for (const hg of state.hourglasses) {
@@ -239,6 +262,7 @@ function getPublicState() {
     activeId: state.activeId,
     lastResetKey: state.lastResetKey,
     coldCall: state.coldCall,
+    history: state.history,
   };
 }
 
