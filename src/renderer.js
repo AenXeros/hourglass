@@ -300,10 +300,13 @@ function renderAutoSwitch() {
     statusEl.className = 'as-status off';
     statusEl.textContent = '○ Browser extension not connected';
   } else {
-    const siteLabel = { youtube: 'YouTube', instagram: 'Instagram', quran: 'Quran.com', other: 'elsewhere' }[st.site] || st.site;
-    let msg = `● Connected — currently on ${siteLabel}`;
-    if (a.enabled && st.targetName) msg += ` → running ${st.targetName}`;
-    else if (a.enabled && st.site && st.site !== 'other') msg += ' → no timer';
+    const siteLabel = { youtube: 'YouTube', instagram: 'Instagram', quran: 'Quran.com', other: 'another site' }[st.site] || st.site;
+    const runningName = (state.hourglasses.find((h) => h.id === state.activeId) || {}).name;
+    let msg = `● Connected — on ${siteLabel}`;
+    if (a.enabled) {
+      if (st.targetName) msg += ` → ${st.targetName}`;
+      else if (runningName) msg += ` → holding ${runningName}`;
+    }
     statusEl.className = 'as-status on';
     statusEl.textContent = msg;
   }

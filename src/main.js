@@ -293,17 +293,16 @@ function handleContext(ctx) {
 
   if (state.autoSwitch.enabled) {
     const target = contextTarget(ctx);
-    autoStatus.targetName = target ? nameOf(target) : '';
-    if (target) {
-      if (state.activeId !== target) state.activeId = target;
+    // Only ever SWITCH to a pre-programmed site's timer. On an unmapped tab or
+    // site (or when the browser loses focus), leave whatever is running — the
+    // current timer keeps counting until you hit another mapped site or change
+    // it yourself.
+    if (target && state.activeId !== target) {
+      state.activeId = target;
       autoActivatedId = target;
-    } else if (state.activeId && state.activeId === autoActivatedId) {
-      // Left the tracked sites (or an excluded channel with no timer): stop the
-      // timer we auto-started, but never a timer the user started by hand.
-      state.activeId = null;
-      autoActivatedId = null;
+      scheduleSave();
     }
-    scheduleSave();
+    autoStatus.targetName = target ? nameOf(target) : '';
   } else {
     autoStatus.targetName = '';
   }
