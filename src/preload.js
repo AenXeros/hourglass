@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('hourglass', {
   setColdCall: (cfg) => ipcRenderer.invoke('set-cold-call', cfg),
   logColdCalls: (count) => ipcRenderer.invoke('log-cold-calls', { count }),
   resetColdCalls: () => ipcRenderer.invoke('reset-cold-calls'),
+  setAutoSwitch: (cfg) => ipcRenderer.invoke('set-auto-switch', cfg),
   collapse: () => ipcRenderer.invoke('collapse'),
   expand: () => ipcRenderer.invoke('expand'),
   toggleView: () => ipcRenderer.invoke('toggle-view'),

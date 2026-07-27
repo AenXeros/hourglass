@@ -1,12 +1,14 @@
 const { app, BrowserWindow, ipcMain, globalShortcut, screen, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 
 // ---------------------------------------------------------------------------
 // Persistence
 // ---------------------------------------------------------------------------
 const DATA_FILE = path.join(app.getPath('userData'), 'hourglass-data.json');
 const ICON_PATH = path.join(__dirname, '..', 'build', 'icon.ico');
+const EXT_PATH = path.join(__dirname, '..', 'browser-extension');
 
 const DEFAULT_COLD_CALL = {
   enabled: false,
@@ -30,9 +32,22 @@ const DEFAULT_STATE = {
   coldCall: { ...DEFAULT_COLD_CALL },
   // Per-day history: { 'YYYY-MM-DD': [ { id, name, seconds }, ... ] }
   history: {},
+  autoSwitch: {
+    enabled: false,
+    entertainmentId: '', // hourglass for YouTube / Instagram ('' = auto by name)
+    quranId: '',         // hourglass for quran.com
+    learnId: '',         // hourglass for the excluded channel ('' = none)
+    excludeChannel: 'Chris Donor',
+  },
 };
 
 const HISTORY_MAX_DAYS = 120;
+const AUTO_PORT = 45871; // localhost port the browser extension talks to
+
+// Live, non-persisted browser-connection status.
+let autoStatus = { connected: false, lastSeenAt: 0, site: '', channel: '', targetName: '' };
+let autoActivatedId = null; // the hourglass auto-switch turned on (so we know what to auto-pause)
+let autoServer = null;
 
 let state = { ...DEFAULT_STATE };
 let mainWindow = null;
@@ -59,6 +74,7 @@ function loadState() {
       parsed.history && typeof parsed.history === 'object' && !Array.isArray(parsed.history)
         ? parsed.history
         : {};
+    state.autoSwitch = { ...DEFAULT_STATE.autoSwitch, ...(parsed.autoSwitch || {}) };
   } catch (err) {
     // The file exists but couldn't be read/parsed. Preserve a copy BEFORE we
     // start saving defaults over it — otherwise one corrupt file silently
@@ -75,6 +91,7 @@ function loadState() {
     state = { ...DEFAULT_STATE };
     state.coldCall = { ...DEFAULT_COLD_CALL };
     state.history = {};
+    state.autoSwitch = { ...DEFAULT_STATE.autoSwitch };
   }
 }
 
@@ -221,9 +238,112 @@ function checkColdCall() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Website auto-switch (driven by the companion browser extension)
+// ---------------------------------------------------------------------------
+function normName(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Resolve which hourglass a role maps to: an explicitly chosen id if it still
+// exists, otherwise a best-effort match by name.
+function resolveRole(role) {
+  const cfg = state.autoSwitch;
+  const exists = (id) => id && state.hourglasses.some((h) => h.id === id);
+  const byName = (re) => {
+    const h = state.hourglasses.find((x) => re.test(x.name));
+    return h ? h.id : null;
+  };
+  if (role === 'ent') return exists(cfg.entertainmentId) ? cfg.entertainmentId : byName(/entertain|youtube|instagram/i);
+  if (role === 'quran') return exists(cfg.quranId) ? cfg.quranId : byName(/quran|prayer/i);
+  if (role === 'learn') return exists(cfg.learnId) ? cfg.learnId : null;
+  return null;
+}
+
+function isExcludedChannel(ctx) {
+  const token = normName(state.autoSwitch.excludeChannel);
+  if (!token) return false;
+  const yt = ctx.youtube || {};
+  const name = normName(yt.channelName);
+  const handle = normName(yt.channelHandle);
+  return (name && name.includes(token)) || (handle && handle.includes(token));
+}
+
+// Which hourglass id should be running for this browser context (or null).
+function contextTarget(ctx) {
+  switch (ctx.site) {
+    case 'quran': return resolveRole('quran');
+    case 'instagram': return resolveRole('ent');
+    case 'youtube': return isExcludedChannel(ctx) ? resolveRole('learn') : resolveRole('ent');
+    default: return null;
+  }
+}
+
+function nameOf(id) {
+  const h = state.hourglasses.find((x) => x.id === id);
+  return h ? h.name : '';
+}
+
+function handleContext(ctx) {
+  autoStatus.connected = true;
+  autoStatus.lastSeenAt = Date.now();
+  autoStatus.site = ctx.site || 'other';
+  autoStatus.channel = (ctx.youtube && ctx.youtube.channelName) || '';
+
+  if (state.autoSwitch.enabled) {
+    const target = contextTarget(ctx);
+    autoStatus.targetName = target ? nameOf(target) : '';
+    if (target) {
+      if (state.activeId !== target) state.activeId = target;
+      autoActivatedId = target;
+    } else if (state.activeId && state.activeId === autoActivatedId) {
+      // Left the tracked sites (or an excluded channel with no timer): stop the
+      // timer we auto-started, but never a timer the user started by hand.
+      state.activeId = null;
+      autoActivatedId = null;
+    }
+    scheduleSave();
+  } else {
+    autoStatus.targetName = '';
+  }
+  broadcastState();
+}
+
+function startAutoServer() {
+  autoServer = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    if (req.url === '/ping') {
+      autoStatus.connected = true;
+      autoStatus.lastSeenAt = Date.now();
+      res.writeHead(200); res.end('ok');
+      return;
+    }
+    if (req.url === '/context' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+      req.on('end', () => {
+        let ctx = {};
+        try { ctx = JSON.parse(body || '{}'); } catch { /* ignore */ }
+        handleContext(ctx);
+        res.writeHead(200); res.end('ok');
+      });
+      return;
+    }
+    res.writeHead(404); res.end();
+  });
+  autoServer.on('error', (err) => console.error('Auto-switch server error:', err));
+  autoServer.listen(AUTO_PORT, '127.0.0.1');
+}
+
 function tick() {
   maybeReset();
   checkColdCall();
+  // Drop the "connected" badge if the extension has gone quiet.
+  if (autoStatus.connected && Date.now() - autoStatus.lastSeenAt > 90000) {
+    autoStatus.connected = false;
+  }
   if (state.activeId) {
     const hg = state.hourglasses.find((h) => h.id === state.activeId);
     if (hg) {
@@ -263,6 +383,9 @@ function getPublicState() {
     lastResetKey: state.lastResetKey,
     coldCall: state.coldCall,
     history: state.history,
+    autoSwitch: state.autoSwitch,
+    autoStatus,
+    extensionPath: EXT_PATH,
   };
 }
 
@@ -566,6 +689,19 @@ ipcMain.handle('reset-cold-calls', () => {
   return getPublicState();
 });
 
+ipcMain.handle('set-auto-switch', (_e, cfg = {}) => {
+  const a = state.autoSwitch;
+  if (typeof cfg.enabled === 'boolean') a.enabled = cfg.enabled;
+  if (typeof cfg.entertainmentId === 'string') a.entertainmentId = cfg.entertainmentId;
+  if (typeof cfg.quranId === 'string') a.quranId = cfg.quranId;
+  if (typeof cfg.learnId === 'string') a.learnId = cfg.learnId;
+  if (typeof cfg.excludeChannel === 'string') a.excludeChannel = cfg.excludeChannel;
+  if (!a.enabled) autoActivatedId = null;
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
 ipcMain.handle('collapse', () => collapseToMini());
 ipcMain.handle('expand', () => expandToMain());
 ipcMain.handle('toggle-view', () => toggleView());
@@ -599,6 +735,7 @@ if (!gotLock) {
     createMainWindow();
     createMiniWindow();
     registerShortcuts();
+    startAutoServer();
 
     setInterval(tick, 1000);
 
@@ -610,6 +747,7 @@ if (!gotLock) {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (autoServer) { try { autoServer.close(); } catch { /* ignore */ } }
   saveState();
 });
 

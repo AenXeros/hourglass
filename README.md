@@ -43,6 +43,14 @@ anywhere. Click the keybind field, then press the combo you want.
   works, but because shortcuts are global it would swallow that combo in every
   app (e.g. you couldn't type `!`).
 
+## Website auto-switch (optional)
+
+Hourglass can start a timer automatically based on the site you're on — YouTube
+/ Instagram → Entertainment, Quran.com → Quran, with an exception for a physics
+YouTube channel that shouldn't count as entertainment. This needs the companion
+`browser-extension/` loaded into Chrome/Edge — see the **Website Auto-Switch**
+card in the app for one-click setup instructions, or `browser-extension/README.md`.
+
 ## Running
 
 ```bash

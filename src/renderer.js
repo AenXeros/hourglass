@@ -262,7 +262,51 @@ function render() {
   }
 
   renderColdCall();
+  renderAutoSwitch();
   if (activeTab === 'record') renderRecord();
+}
+
+// ---------------------------------------------------------------------------
+// Website auto-switch
+// ---------------------------------------------------------------------------
+function fillHourglassSelect(sel, chosenId, includeNone) {
+  if (document.activeElement === sel) return; // don't clobber while choosing
+  const opts = [];
+  opts.push(`<option value="">${includeNone ? 'None' : 'Auto (by name)'}</option>`);
+  for (const h of state.hourglasses) {
+    opts.push(`<option value="${h.id}">${escapeHtml(h.name)}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  sel.value = chosenId || '';
+}
+
+function renderAutoSwitch() {
+  const a = state.autoSwitch || {};
+  const st = state.autoStatus || {};
+  const enabledEl = document.getElementById('asEnabled');
+  const excludeEl = document.getElementById('asExclude');
+
+  if (document.activeElement !== enabledEl) enabledEl.checked = !!a.enabled;
+  if (document.activeElement !== excludeEl) excludeEl.value = a.excludeChannel || '';
+  fillHourglassSelect(document.getElementById('asEnt'), a.entertainmentId, false);
+  fillHourglassSelect(document.getElementById('asQuran'), a.quranId, false);
+  fillHourglassSelect(document.getElementById('asLearn'), a.learnId, true);
+
+  const extPathEl = document.getElementById('asExtPath');
+  if (extPathEl && state.extensionPath) extPathEl.textContent = state.extensionPath;
+
+  const statusEl = document.getElementById('asStatus');
+  if (!st.connected) {
+    statusEl.className = 'as-status off';
+    statusEl.textContent = '○ Browser extension not connected';
+  } else {
+    const siteLabel = { youtube: 'YouTube', instagram: 'Instagram', quran: 'Quran.com', other: 'elsewhere' }[st.site] || st.site;
+    let msg = `● Connected — currently on ${siteLabel}`;
+    if (a.enabled && st.targetName) msg += ` → running ${st.targetName}`;
+    else if (a.enabled && st.site && st.site !== 'other') msg += ' → no timer';
+    statusEl.className = 'as-status on';
+    statusEl.textContent = msg;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -461,6 +505,26 @@ document.getElementById('addForm').addEventListener('submit', async (e) => {
   kb.value = '';
   kb.dataset.accel = '';
   render();
+});
+
+// Website auto-switch controls
+async function pushAutoSwitch() {
+  state = await api.setAutoSwitch({
+    enabled: document.getElementById('asEnabled').checked,
+    entertainmentId: document.getElementById('asEnt').value,
+    quranId: document.getElementById('asQuran').value,
+    learnId: document.getElementById('asLearn').value,
+    excludeChannel: document.getElementById('asExclude').value,
+  });
+  render();
+}
+for (const id of ['asEnabled', 'asEnt', 'asQuran', 'asLearn']) {
+  document.getElementById(id).addEventListener('change', pushAutoSwitch);
+}
+document.getElementById('asExclude').addEventListener('change', pushAutoSwitch);
+document.getElementById('asHelpToggle').addEventListener('click', () => {
+  const help = document.getElementById('asHelp');
+  help.style.display = help.style.display === 'none' ? 'block' : 'none';
 });
 
 // Tab switching

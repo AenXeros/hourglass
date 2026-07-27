@@ -156,6 +156,50 @@
         <button class="cc-btn ghost" id="ccResetToday">Reset today</button>
       </div>
     </section>
+
+    <!-- Website auto-switch -->
+    <section class="card autoswitch-card" id="autoSwitchCard">
+      <h2>Website Auto-Switch</h2>
+      <label class="cc-toggle">
+        <input type="checkbox" id="asEnabled" />
+        <span>Start a timer automatically based on the website I'm on</span>
+      </label>
+
+      <div class="as-rows">
+        <div class="as-row">
+          <span class="as-label">YouTube &amp; Instagram</span>
+          <span class="as-arrow">→</span>
+          <select id="asEnt" class="as-select"></select>
+        </div>
+        <div class="as-row">
+          <span class="as-label">Quran.com</span>
+          <span class="as-arrow">→</span>
+          <select id="asQuran" class="as-select"></select>
+        </div>
+        <div class="as-row">
+          <span class="as-label">Except YouTube channel</span>
+          <input type="text" id="asExclude" class="as-exclude" placeholder="Chris Donor" />
+          <span class="as-arrow">→</span>
+          <select id="asLearn" class="as-select"></select>
+        </div>
+      </div>
+
+      <div class="as-status" id="asStatus">Checking for the browser extension…</div>
+
+      <p class="hint">
+        Needs the free Hourglass Connector browser extension so the app can tell which site you're on.
+        <button type="button" id="asHelpToggle" class="link-btn">Setup instructions</button>
+      </p>
+      <div class="as-help" id="asHelp" style="display:none">
+        <ol>
+          <li>Open <code>chrome://extensions</code> in Chrome (or Edge).</li>
+          <li>Turn on <strong>Developer mode</strong> (top-right toggle).</li>
+          <li>Click <strong>Load unpacked</strong> and select the <code>browser-extension</code> folder shown below.</li>
+          <li>The status above turns green when it connects.</li>
+        </ol>
+        <p class="as-path">Folder: <code id="asExtPath">…</code></p>
+      </div>
+    </section>
   </main>
 
   <!-- Record panel -->
