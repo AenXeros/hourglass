@@ -47,6 +47,7 @@ const AUTO_PORT = 45871; // localhost port the browser extension talks to
 // Live, non-persisted browser-connection status.
 let autoStatus = { connected: false, lastSeenAt: 0, site: '', channel: '', targetName: '' };
 let autoActivatedId = null; // the hourglass auto-switch turned on (so we know what to auto-pause)
+let lastContextKey = null; // identity of the last-seen tab context (to detect real arrivals vs heartbeats)
 let autoServer = null;
 
 let state = { ...DEFAULT_STATE };
@@ -280,6 +281,18 @@ function contextTarget(ctx) {
   }
 }
 
+// A stable identity for "what tab/content you're currently on", so we can tell
+// a real arrival (you moved to different content) from the periodic heartbeat
+// for the tab you're already sitting on. Keyed by channel for YouTube (ignores
+// per-video URL churn), else by site.
+function contextKey(ctx) {
+  if (ctx.site === 'youtube') {
+    const yt = ctx.youtube || {};
+    return 'youtube|' + (yt.channelId || yt.channelHandle || yt.channelName || '');
+  }
+  return ctx.site || 'other';
+}
+
 function nameOf(id) {
   const h = state.hourglasses.find((x) => x.id === id);
   return h ? h.name : '';
@@ -291,13 +304,18 @@ function handleContext(ctx) {
   autoStatus.site = ctx.site || 'other';
   autoStatus.channel = (ctx.youtube && ctx.youtube.channelName) || '';
 
+  const key = contextKey(ctx);
+  const isArrival = key !== lastContextKey;
+  lastContextKey = key;
+
   if (state.autoSwitch.enabled) {
     const target = contextTarget(ctx);
-    // Only ever SWITCH to a pre-programmed site's timer. On an unmapped tab or
-    // site (or when the browser loses focus), leave whatever is running — the
-    // current timer keeps counting until you hit another mapped site or change
-    // it yourself.
-    if (target && state.activeId !== target) {
+    // Switch ONLY when you ARRIVE on a mapped site (the tab's content changed
+    // since the last report) — never on the periodic heartbeat for the tab you
+    // are already sitting on. So if you turn a timer off by hand while staying
+    // put, it stays off; it only comes back when you leave and return. On an
+    // unmapped tab, leave whatever is running (the timer holds).
+    if (isArrival && target && state.activeId !== target) {
       state.activeId = target;
       autoActivatedId = target;
       scheduleSave();
@@ -697,6 +715,7 @@ ipcMain.handle('set-auto-switch', (_e, cfg = {}) => {
   if (typeof cfg.learnId === 'string') a.learnId = cfg.learnId;
   if (typeof cfg.excludeChannel === 'string') a.excludeChannel = cfg.excludeChannel;
   if (!a.enabled) autoActivatedId = null;
+  lastContextKey = null; // re-arm so a settings change applies to the current tab
   saveState();
   broadcastState();
   return getPublicState();
