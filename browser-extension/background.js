@@ -55,6 +55,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     ytByTab[sender.tab.id] = {
       channelName: msg.channelName,
       channelHandle: msg.channelHandle,
+      channelId: msg.channelId,
       url: msg.url,
     };
     report();

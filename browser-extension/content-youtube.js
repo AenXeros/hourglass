@@ -18,6 +18,7 @@ window.addEventListener('message', (e) => {
         type: 'yt-context',
         channelName: d.author || '',
         channelHandle: d.handle || '',
+        channelId: d.channelId || '',
         url: location.href,
       });
     } catch (err) {

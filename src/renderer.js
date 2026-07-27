@@ -461,8 +461,6 @@ function escapeHtml(str) {
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
-document.getElementById('collapseBtn').addEventListener('click', () => api.collapse());
-
 // Shift+Esc shrinks the full window into the mini pill.
 document.addEventListener('keydown', (e) => {
   if (e.shiftKey && e.key === 'Escape') {
