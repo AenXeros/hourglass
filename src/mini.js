@@ -17,15 +17,27 @@ function fmtDuration(totalSec) {
 function render(state) {
   const mini = document.getElementById('mini');
   const active = state.hourglasses.find((h) => h.id === state.activeId);
+  const activeSw = (state.stopwatches || []).find((s) => s.id === state.activeStopwatchId);
 
-  if (!active) {
-    mini.classList.remove('active', 'over');
+  if (!active && !activeSw) {
+    mini.classList.remove('active', 'over', 'stopwatch');
     document.getElementById('miniName').textContent = 'No task running';
     document.getElementById('miniTime').textContent = '—:—';
     document.getElementById('miniBar').style.width = '0%';
     return;
   }
 
+  // A running stopwatch counts UP — no drain bar, no overtime.
+  if (activeSw) {
+    mini.classList.add('active', 'stopwatch');
+    mini.classList.remove('over');
+    document.getElementById('miniName').textContent = activeSw.name;
+    document.getElementById('miniTime').textContent = fmtDuration(activeSw.elapsedSeconds);
+    document.getElementById('miniBar').style.width = '0%';
+    return;
+  }
+
+  mini.classList.remove('stopwatch');
   const effAlloc = Math.max(0, active.allocatedSeconds - (active.borrowedSeconds || 0) + (active.transferredSeconds || 0));
   const remaining = effAlloc - active.elapsedSeconds;
   const over = remaining < 0;

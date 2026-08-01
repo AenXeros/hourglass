@@ -73,6 +73,33 @@ body {
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--accent-2); border-bottom-color: var(--accent); }
 
+/* Keybind mode switch ----------------------------------------------------- */
+.mode-switch {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 3px;
+}
+.mode-label { font-size: 11px; color: var(--muted); padding: 0 4px 0 6px; }
+.mode-opt {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.12s;
+}
+.mode-opt:hover { color: var(--text); }
+.mode-opt.active { background: var(--card-2); color: var(--accent-2); }
+.reset-note { margin-left: 14px; }
+
 /* Daily record ------------------------------------------------------------ */
 .record-sub { font-size: 12px; color: var(--muted); }
 .record-list { display: flex; flex-direction: column; gap: 10px; }

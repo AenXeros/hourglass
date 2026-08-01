@@ -5,6 +5,8 @@ let editingId = null;
 let reallocOpen = false;
 let activeTab = 'timers';
 const expandedDays = new Set(); // record-panel days currently expanded
+const expandedSwDays = new Set(); // stopwatch record days currently expanded
+let swEditingId = null;
 // Transfer modal working state: { fromId, toId, seconds } while open, else null.
 let transfer = null;
 
@@ -263,7 +265,9 @@ function render() {
 
   renderColdCall();
   renderAutoSwitch();
+  renderMode();
   if (activeTab === 'record') renderRecord();
+  if (activeTab === 'stopwatch') { renderStopwatches(); renderSwRecord(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -396,8 +400,10 @@ function switchTab(tab) {
   activeTab = tab;
   document.getElementById('timersPanel').style.display = tab === 'timers' ? '' : 'none';
   document.getElementById('recordPanel').style.display = tab === 'record' ? '' : 'none';
+  document.getElementById('stopwatchPanel').style.display = tab === 'stopwatch' ? '' : 'none';
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   if (tab === 'record') renderRecord();
+  if (tab === 'stopwatch') { renderStopwatches(); renderSwRecord(); }
 }
 
 // Merge archived history with today's live totals into { key: [{name, seconds}] }.
@@ -415,12 +421,8 @@ function buildRecordDays() {
   return { days, todayKey };
 }
 
-function renderRecord() {
-  const listEl = document.getElementById('recordList');
-  const emptyEl = document.getElementById('recordEmpty');
-  const { days } = buildRecordDays();
-
-  // Only show days that actually have tracked time, newest first.
+// Shared renderer for a per-day record list (used by both hourglass & stopwatch).
+function renderDayList(listEl, emptyEl, days, expandedSet) {
   const keys = Object.keys(days)
     .filter((k) => days[k].length > 0)
     .sort()
@@ -433,7 +435,7 @@ function renderRecord() {
     const entries = days[key].slice().sort((a, b) => b.seconds - a.seconds);
     const total = entries.reduce((s, e) => s + e.seconds, 0);
     const { base, tag } = labelForDay(key);
-    const open = expandedDays.has(key);
+    const open = expandedSet.has(key);
 
     const dayEl = document.createElement('div');
     dayEl.className = 'rec-day' + (open ? ' open' : '');
@@ -452,6 +454,66 @@ function renderRecord() {
       </div>
     `;
     listEl.appendChild(dayEl);
+  }
+}
+
+function renderRecord() {
+  renderDayList(document.getElementById('recordList'), document.getElementById('recordEmpty'), buildRecordDays().days, expandedDays);
+}
+
+// --- Stopwatch record (bottom of the Stopwatch tab) ---
+function buildSwRecordDays() {
+  const days = {};
+  const hist = state.stopwatchHistory || {};
+  for (const key of Object.keys(hist)) {
+    days[key] = (hist[key] || []).map((e) => ({ name: e.name, seconds: e.seconds }));
+  }
+  const todayKey = state.lastResetKey || resetKeyFor();
+  days[todayKey] = (state.stopwatches || [])
+    .filter((s) => s.elapsedSeconds > 0)
+    .map((s) => ({ name: s.name, seconds: s.elapsedSeconds }));
+  return { days, todayKey };
+}
+
+function renderSwRecord() {
+  renderDayList(document.getElementById('swRecordList'), document.getElementById('swRecordEmpty'), buildSwRecordDays().days, expandedSwDays);
+}
+
+// --- Stopwatch list + mode toggle ---
+function renderMode() {
+  const mode = state.mode || 'hourglass';
+  document.querySelectorAll('#modeSwitch .mode-opt').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+}
+
+function renderStopwatches() {
+  const list = document.getElementById('stopwatchList');
+  const empty = document.getElementById('stopwatchEmpty');
+  const sws = state.stopwatches || [];
+  empty.style.display = sws.length ? 'none' : 'block';
+  list.innerHTML = '';
+  for (const sw of sws) {
+    const isActive = state.activeStopwatchId === sw.id;
+    const card = document.createElement('div');
+    card.className = 'hg-card' + (isActive ? ' active' : '');
+    card.innerHTML = `
+      <div class="hg-main">
+        <div class="hg-head">
+          <span class="hg-name">${escapeHtml(sw.name)}</span>
+          ${sw.keybind ? `<span class="hg-keybind">${escapeHtml(sw.keybind)}</span>` : ''}
+        </div>
+        <div class="hg-time">${fmtDuration(sw.elapsedSeconds)}</div>
+        <div class="hg-sub">${isActive ? 'running…' : 'stopped'} · counts up</div>
+      </div>
+      <div class="hg-actions">
+        <button class="toggle-btn ${isActive ? 'on' : ''}" data-swact="toggle" data-id="${sw.id}">
+          ${isActive ? '● Running' : 'Start'}
+        </button>
+        <button class="mini-icon" data-swact="edit" data-id="${sw.id}" title="Edit">✎</button>
+        <button class="mini-icon" data-swact="reset" data-id="${sw.id}" title="Reset this stopwatch">↺</button>
+        <button class="mini-icon danger" data-swact="delete" data-id="${sw.id}" title="Delete">✕</button>
+      </div>
+    `;
+    list.appendChild(card);
   }
 }
 
@@ -542,6 +604,107 @@ document.getElementById('recordList').addEventListener('click', (e) => {
   if (expandedDays.has(key)) expandedDays.delete(key);
   else expandedDays.add(key);
   renderRecord();
+});
+
+// ---------------------------------------------------------------------------
+// Stopwatch tab
+// ---------------------------------------------------------------------------
+// Keybind mode toggle (which system the global keybinds control)
+document.getElementById('modeSwitch').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.mode-opt');
+  if (!btn) return;
+  state = await api.setMode(btn.dataset.mode);
+  render();
+});
+
+// New stopwatch
+makeKeybindInput(document.getElementById('swKeybind'));
+document.getElementById('addSwForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('swName').value.trim();
+  if (!name) return;
+  const keybind = document.getElementById('swKeybind').dataset.accel || '';
+  state = await api.addStopwatch(name, keybind);
+  document.getElementById('swName').value = '';
+  const kb = document.getElementById('swKeybind');
+  kb.value = '';
+  kb.dataset.accel = '';
+  render();
+});
+
+document.getElementById('resetAllSwBtn').addEventListener('click', async () => {
+  state = await api.resetAllStopwatches();
+  render();
+});
+
+// Stopwatch list actions
+document.getElementById('stopwatchList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-swact]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const act = btn.dataset.swact;
+  if (act === 'toggle') {
+    state = await api.setActiveStopwatch(id);
+  } else if (act === 'reset') {
+    state = await api.resetStopwatch(id);
+  } else if (act === 'delete') {
+    const sw = (state.stopwatches || []).find((s) => s.id === id);
+    if (confirm(`Delete "${sw ? sw.name : 'this stopwatch'}"?`)) {
+      state = await api.deleteStopwatch(id);
+    }
+  } else if (act === 'edit') {
+    openSwEdit(id);
+  }
+  render();
+});
+
+// Stopwatch record day expand/collapse
+document.getElementById('swRecordList').addEventListener('click', (e) => {
+  const head = e.target.closest('[data-day]');
+  if (!head) return;
+  const key = head.dataset.day;
+  if (expandedSwDays.has(key)) expandedSwDays.delete(key);
+  else expandedSwDays.add(key);
+  renderSwRecord();
+});
+
+// Stopwatch edit modal
+const swEditModal = document.getElementById('swEditModal');
+makeKeybindInput(document.getElementById('swEditKeybind'));
+function openSwEdit(id) {
+  const sw = (state.stopwatches || []).find((s) => s.id === id);
+  if (!sw) return;
+  swEditingId = id;
+  document.getElementById('swEditName').value = sw.name;
+  const kb = document.getElementById('swEditKeybind');
+  kb.value = sw.keybind || '';
+  kb.dataset.accel = sw.keybind || '';
+  swEditModal.classList.remove('hidden');
+}
+document.getElementById('swEditCancel').addEventListener('click', () => {
+  swEditModal.classList.add('hidden');
+  swEditingId = null;
+});
+document.getElementById('swClearKeybind').addEventListener('click', () => {
+  const kb = document.getElementById('swEditKeybind');
+  kb.value = '';
+  kb.dataset.accel = '';
+});
+document.getElementById('swEditSave').addEventListener('click', async () => {
+  if (!swEditingId) return;
+  state = await api.updateStopwatch(swEditingId, {
+    name: document.getElementById('swEditName').value.trim(),
+    keybind: document.getElementById('swEditKeybind').dataset.accel || '',
+  });
+  swEditModal.classList.add('hidden');
+  swEditingId = null;
+  render();
+});
+swEditModal.addEventListener('click', (e) => {
+  if (e.target === swEditModal) {
+    swEditModal.classList.add('hidden');
+    swEditingId = null;
+  }
 });
 
 // Cold call reminder controls

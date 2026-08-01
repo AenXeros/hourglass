@@ -32,6 +32,12 @@ const DEFAULT_STATE = {
   coldCall: { ...DEFAULT_COLD_CALL },
   // Per-day history: { 'YYYY-MM-DD': [ { id, name, seconds }, ... ] }
   history: {},
+  // Stopwatches: a separate count-UP system with its own keybinds & records.
+  stopwatches: [],
+  activeStopwatchId: null,
+  stopwatchHistory: {},
+  // Which system the GLOBAL keybinds control: 'hourglass' | 'stopwatch'.
+  mode: 'hourglass',
   autoSwitch: {
     enabled: false,
     entertainmentId: '', // hourglass for YouTube / Instagram ('' = auto by name)
@@ -76,6 +82,16 @@ function loadState() {
         ? parsed.history
         : {};
     state.autoSwitch = { ...DEFAULT_STATE.autoSwitch, ...(parsed.autoSwitch || {}) };
+    // Stopwatch system
+    if (!Array.isArray(state.stopwatches)) state.stopwatches = [];
+    for (const sw of state.stopwatches) {
+      if (typeof sw.elapsedSeconds !== 'number') sw.elapsedSeconds = 0;
+    }
+    state.stopwatchHistory =
+      parsed.stopwatchHistory && typeof parsed.stopwatchHistory === 'object' && !Array.isArray(parsed.stopwatchHistory)
+        ? parsed.stopwatchHistory
+        : {};
+    state.mode = parsed.mode === 'stopwatch' ? 'stopwatch' : 'hourglass';
   } catch (err) {
     // The file exists but couldn't be read/parsed. Preserve a copy BEFORE we
     // start saving defaults over it — otherwise one corrupt file silently
@@ -93,6 +109,9 @@ function loadState() {
     state.coldCall = { ...DEFAULT_COLD_CALL };
     state.history = {};
     state.autoSwitch = { ...DEFAULT_STATE.autoSwitch };
+    state.stopwatches = [];
+    state.stopwatchHistory = {};
+    state.mode = 'hourglass';
   }
 }
 
@@ -145,7 +164,20 @@ function maybeReset() {
       // Keep history bounded.
       const keys = Object.keys(state.history).sort();
       while (keys.length > HISTORY_MAX_DAYS) delete state.history[keys.shift()];
+
+      // Archive stopwatches into their own separate history.
+      const swEntries = state.stopwatches
+        .filter((sw) => sw.elapsedSeconds > 0)
+        .map((sw) => ({ id: sw.id, name: sw.name, seconds: sw.elapsedSeconds }));
+      if (swEntries.length) {
+        if (!state.stopwatchHistory) state.stopwatchHistory = {};
+        state.stopwatchHistory[state.lastResetKey] = swEntries;
+      }
+      const swKeys = Object.keys(state.stopwatchHistory || {}).sort();
+      while (swKeys.length > HISTORY_MAX_DAYS) delete state.stopwatchHistory[swKeys.shift()];
     }
+    // New day: wipe stopwatch elapsed too (they keep running from zero).
+    for (const sw of state.stopwatches) sw.elapsedSeconds = 0;
     // New day: wipe elapsed time and any reallocated (borrowed) time so the
     // plan starts fresh.
     for (const hg of state.hourglasses) {
@@ -308,7 +340,7 @@ function handleContext(ctx) {
   const isArrival = key !== lastContextKey;
   lastContextKey = key;
 
-  if (state.autoSwitch.enabled) {
+  if (state.autoSwitch.enabled && state.mode === 'hourglass') {
     const target = contextTarget(ctx);
     // Switch ONLY when you ARRIVE on a mapped site (the tab's content changed
     // since the last report) — never on the periodic heartbeat for the tab you
@@ -370,6 +402,14 @@ function tick() {
     } else {
       state.activeId = null;
     }
+  } else if (state.activeStopwatchId) {
+    const sw = state.stopwatches.find((s) => s.id === state.activeStopwatchId);
+    if (sw) {
+      sw.elapsedSeconds += 1;
+      scheduleSave();
+    } else {
+      state.activeStopwatchId = null;
+    }
   }
   broadcastState();
 }
@@ -404,6 +444,10 @@ function getPublicState() {
     autoSwitch: state.autoSwitch,
     autoStatus,
     extensionPath: EXT_PATH,
+    stopwatches: state.stopwatches,
+    activeStopwatchId: state.activeStopwatchId,
+    stopwatchHistory: state.stopwatchHistory,
+    mode: state.mode,
   };
 }
 
@@ -445,6 +489,15 @@ function setActive(id) {
   if (isDuplicate('active:' + id)) return;
   // Toggle: activating the already-active hourglass pauses everything.
   state.activeId = state.activeId === id ? null : id;
+  if (state.activeId) state.activeStopwatchId = null; // only one timer runs app-wide
+  broadcastState();
+  saveState();
+}
+
+function setActiveStopwatch(id) {
+  if (isDuplicate('sw:' + id)) return;
+  state.activeStopwatchId = state.activeStopwatchId === id ? null : id;
+  if (state.activeStopwatchId) state.activeId = null; // pause any hourglass
   broadcastState();
   saveState();
 }
@@ -454,12 +507,25 @@ function setActive(id) {
 // ---------------------------------------------------------------------------
 function registerShortcuts() {
   globalShortcut.unregisterAll();
-  for (const hg of state.hourglasses) {
-    if (!hg.keybind) continue;
-    try {
-      globalShortcut.register(hg.keybind, () => setActive(hg.id));
-    } catch (err) {
-      console.error(`Failed to register shortcut "${hg.keybind}":`, err);
+  // Only the active mode's keybinds are live, so hourglass and stopwatch
+  // shortcuts can safely overlap.
+  if (state.mode === 'stopwatch') {
+    for (const sw of state.stopwatches) {
+      if (!sw.keybind) continue;
+      try {
+        globalShortcut.register(sw.keybind, () => setActiveStopwatch(sw.id));
+      } catch (err) {
+        console.error(`Failed to register stopwatch shortcut "${sw.keybind}":`, err);
+      }
+    }
+  } else {
+    for (const hg of state.hourglasses) {
+      if (!hg.keybind) continue;
+      try {
+        globalShortcut.register(hg.keybind, () => setActive(hg.id));
+      } catch (err) {
+        console.error(`Failed to register shortcut "${hg.keybind}":`, err);
+      }
     }
   }
   // Shift+Esc toggles between the full window and the mini pill. Registered
@@ -716,6 +782,69 @@ ipcMain.handle('set-auto-switch', (_e, cfg = {}) => {
   if (typeof cfg.excludeChannel === 'string') a.excludeChannel = cfg.excludeChannel;
   if (!a.enabled) autoActivatedId = null;
   lastContextKey = null; // re-arm so a settings change applies to the current tab
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+// --- Stopwatches ------------------------------------------------------------
+ipcMain.handle('set-mode', (_e, { mode }) => {
+  state.mode = mode === 'stopwatch' ? 'stopwatch' : 'hourglass';
+  registerShortcuts(); // swap which keybinds are live
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+ipcMain.handle('add-stopwatch', (_e, { name, keybind }) => {
+  state.stopwatches.push({
+    id: makeId(),
+    name: String(name || 'Untitled').trim() || 'Untitled',
+    elapsedSeconds: 0,
+    keybind: keybind || '',
+  });
+  registerShortcuts();
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+ipcMain.handle('update-stopwatch', (_e, { id, name, keybind }) => {
+  const sw = state.stopwatches.find((s) => s.id === id);
+  if (sw) {
+    if (typeof name === 'string') sw.name = name.trim() || sw.name;
+    if (typeof keybind === 'string') sw.keybind = keybind;
+    registerShortcuts();
+    saveState();
+    broadcastState();
+  }
+  return getPublicState();
+});
+
+ipcMain.handle('delete-stopwatch', (_e, { id }) => {
+  state.stopwatches = state.stopwatches.filter((s) => s.id !== id);
+  if (state.activeStopwatchId === id) state.activeStopwatchId = null;
+  registerShortcuts();
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+ipcMain.handle('set-active-stopwatch', (_e, { id }) => {
+  setActiveStopwatch(id);
+  return getPublicState();
+});
+
+ipcMain.handle('reset-stopwatch', (_e, { id }) => {
+  const sw = state.stopwatches.find((s) => s.id === id);
+  if (sw) sw.elapsedSeconds = 0;
+  saveState();
+  broadcastState();
+  return getPublicState();
+});
+
+ipcMain.handle('reset-all-stopwatches', () => {
+  for (const sw of state.stopwatches) sw.elapsedSeconds = 0;
   saveState();
   broadcastState();
   return getPublicState();

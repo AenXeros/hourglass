@@ -12,12 +12,18 @@
       <span class="brand-icon">⏳</span>
       <h1>Hourglass</h1>
     </div>
+    <div class="mode-switch" id="modeSwitch" title="Which system your global keybinds control right now">
+      <span class="mode-label">Keybinds</span>
+      <button class="mode-opt active" data-mode="hourglass">⏳ Hourglass</button>
+      <button class="mode-opt" data-mode="stopwatch">⏱ Stopwatch</button>
+    </div>
     <div class="reset-note" id="resetNote">Resets daily at 5:00 AM</div>
   </header>
 
   <nav class="tabs">
     <button class="tab active" data-tab="timers">Timers</button>
     <button class="tab" data-tab="record">Record</button>
+    <button class="tab" data-tab="stopwatch">Stopwatch</button>
   </nav>
 
   <main class="content" id="timersPanel">
@@ -208,6 +214,60 @@
     <div id="recordList" class="record-list"></div>
     <p id="recordEmpty" class="empty" style="display:none">No time tracked yet. Start a timer and it'll show up here.</p>
   </main>
+
+  <!-- Stopwatch panel -->
+  <main class="content" id="stopwatchPanel" style="display:none">
+    <section class="add-card card">
+      <h2>New Stopwatch</h2>
+      <form id="addSwForm" class="add-form">
+        <div class="field grow">
+          <label for="swName">Name</label>
+          <input type="text" id="swName" placeholder="e.g. Gym" required />
+        </div>
+        <div class="field">
+          <label for="swKeybind">Keybind</label>
+          <input type="text" id="swKeybind" class="keybind-input" placeholder="Click, then press keys" readonly />
+        </div>
+        <button type="submit" class="primary-btn">Add</button>
+      </form>
+      <p class="hint">Stopwatches count <strong>up</strong>. Their keybinds only fire when the top-bar mode is set to <strong>⏱ Stopwatch</strong>. Press <code>Shift+Esc</code> to shrink into the mini pill, same as timers.</p>
+    </section>
+
+    <section class="list-header">
+      <h2>Stopwatches</h2>
+      <button id="resetAllSwBtn" class="ghost-btn">Reset all</button>
+    </section>
+    <section id="stopwatchList" class="hourglass-list"></section>
+    <p id="stopwatchEmpty" class="empty" style="display:none">No stopwatches yet. Create one above to start tracking.</p>
+
+    <div class="settings-divider"><span>Stopwatch Record</span></div>
+    <section class="list-header">
+      <h2>Daily Record</h2>
+      <span class="record-sub">Time spent on each stopwatch, per day</span>
+    </section>
+    <div id="swRecordList" class="record-list"></div>
+    <p id="swRecordEmpty" class="empty" style="display:none">No stopwatch time tracked yet.</p>
+  </main>
+
+  <!-- Stopwatch edit modal -->
+  <div id="swEditModal" class="modal hidden">
+    <div class="modal-box">
+      <h2>Edit Stopwatch</h2>
+      <div class="field">
+        <label for="swEditName">Name</label>
+        <input type="text" id="swEditName" />
+      </div>
+      <div class="field">
+        <label for="swEditKeybind">Keybind</label>
+        <input type="text" id="swEditKeybind" class="keybind-input" placeholder="Click, then press keys" readonly />
+        <button type="button" id="swClearKeybind" class="link-btn">Clear keybind</button>
+      </div>
+      <div class="modal-actions">
+        <button id="swEditCancel" class="ghost-btn">Cancel</button>
+        <button id="swEditSave" class="primary-btn">Save</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Edit modal -->
   <div id="editModal" class="modal hidden">
