@@ -503,6 +503,13 @@ function renderStopwatches() {
         </div>
         <div class="hg-time">${fmtDuration(sw.elapsedSeconds)}</div>
         <div class="hg-sub">${isActive ? 'running…' : 'stopped'} · counts up</div>
+        <div class="sw-adjust">
+          <span class="sw-adjust-label">Adjust</span>
+          <button class="sw-adj-btn" data-swact="adjust" data-id="${sw.id}" data-delta="-300">−5m</button>
+          <button class="sw-adj-btn" data-swact="adjust" data-id="${sw.id}" data-delta="-60">−1m</button>
+          <button class="sw-adj-btn" data-swact="adjust" data-id="${sw.id}" data-delta="60">+1m</button>
+          <button class="sw-adj-btn" data-swact="adjust" data-id="${sw.id}" data-delta="300">+5m</button>
+        </div>
       </div>
       <div class="hg-actions">
         <button class="toggle-btn ${isActive ? 'on' : ''}" data-swact="toggle" data-id="${sw.id}">
@@ -645,6 +652,8 @@ document.getElementById('stopwatchList').addEventListener('click', async (e) => 
   const act = btn.dataset.swact;
   if (act === 'toggle') {
     state = await api.setActiveStopwatch(id);
+  } else if (act === 'adjust') {
+    state = await api.adjustStopwatch(id, parseInt(btn.dataset.delta, 10) || 0);
   } else if (act === 'reset') {
     state = await api.resetStopwatch(id);
   } else if (act === 'delete') {

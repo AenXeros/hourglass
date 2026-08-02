@@ -850,6 +850,17 @@ ipcMain.handle('reset-all-stopwatches', () => {
   return getPublicState();
 });
 
+// Manually nudge a stopwatch's tracked time up or down (never below zero).
+ipcMain.handle('adjust-stopwatch', (_e, { id, deltaSeconds }) => {
+  const sw = state.stopwatches.find((s) => s.id === id);
+  if (sw) {
+    sw.elapsedSeconds = Math.max(0, sw.elapsedSeconds + Math.round(deltaSeconds || 0));
+    saveState();
+    broadcastState();
+  }
+  return getPublicState();
+});
+
 ipcMain.handle('collapse', () => collapseToMini());
 ipcMain.handle('expand', () => expandToMain());
 ipcMain.handle('toggle-view', () => toggleView());

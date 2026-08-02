@@ -100,6 +100,23 @@ body {
 .mode-opt.active { background: var(--card-2); color: var(--accent-2); }
 .reset-note { margin-left: 14px; }
 
+/* Stopwatch time adjust --------------------------------------------------- */
+.sw-adjust { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sw-adjust-label { font-size: 11px; color: var(--muted); margin-right: 2px; }
+.sw-adj-btn {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: 0.12s;
+}
+.sw-adj-btn:hover { border-color: var(--accent); }
+
 /* Daily record ------------------------------------------------------------ */
 .record-sub { font-size: 12px; color: var(--muted); }
 .record-list { display: flex; flex-direction: column; gap: 10px; }

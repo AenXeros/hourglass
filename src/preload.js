@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('hourglass', {
   setActiveStopwatch: (id) => ipcRenderer.invoke('set-active-stopwatch', { id }),
   resetStopwatch: (id) => ipcRenderer.invoke('reset-stopwatch', { id }),
   resetAllStopwatches: () => ipcRenderer.invoke('reset-all-stopwatches'),
+  adjustStopwatch: (id, deltaSeconds) => ipcRenderer.invoke('adjust-stopwatch', { id, deltaSeconds }),
   collapse: () => ipcRenderer.invoke('collapse'),
   expand: () => ipcRenderer.invoke('expand'),
   toggleView: () => ipcRenderer.invoke('toggle-view'),
